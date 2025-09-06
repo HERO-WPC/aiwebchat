@@ -89,7 +89,7 @@ export async function onRequestPost(context) {
                     url: 'https://api.chatanywhere.org',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
-                    body: JSON.stringify({ model: "gpt-4.1-mini", messages: gptMessages })
+                    body: JSON.stringify({ model: "gpt-4-turbo", messages: gptMessages })
                 };
                 break;
 
