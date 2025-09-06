@@ -70,20 +70,14 @@ export async function onRequestPost(context) {
                 break;
 
 case 'chatgpt':
-    const openaiApiKey = env.OPENAI_API_KEY;
+    const openaiApiKey = env.OPENAI_API_KEY; // 这里依然使用您在 ChatAnywhere 获取的 API Key
     if (!openaiApiKey) throw new Error("OPENAI_API_KEY 环境变量未设置");
-
     const gptMessages = [...messages]; // 复制一份消息历史
     let finalInputText = ""; // 用于存储最终发送的 input 字符串
-
-    // 处理图片逻辑
+    // 处理图片逻辑。根据 Responses API 的 input 期望字符串，我们只提取文本部分。
     if (imageData && image) {
         const lastUserMsg = gptMessages.filter(m => m.role === 'user').pop();
         if (lastUserMsg) {
-            // 如果有图片，按照 GPT-4o 的要求，lastUserMsg.content 应该是数组。
-            // 但是 Responses API 的 input 期待的是字符串。
-            // 所以这里我们需要决定如何从包含图片的消息中提取文本部分作为 input。
-            // 最简单的处理是获取数组中 type 为 "text" 的第一个元素的文本。
             if (Array.isArray(lastUserMsg.content)) {
                 const textPart = lastUserMsg.content.find(item => item.type === 'text');
                 if (textPart && typeof textPart.text === 'string') {
@@ -106,19 +100,19 @@ case 'chatgpt':
             finalInputText = lastUserMsg.content;
         }
     }
-
-    // 您可以根据需要决定是否始终添加 `store: true`
-    // 如果您不想存储响应，可以删除这一行或者将其设置为 `false`
-    const storeResponse = true; // 根据需求设置
-
+    // 根据 ChatAnywhere 文档，选择合适的接入点。这里以国内首选为例。
+    const chatanywhereApiHost = 'https://api.chatanywhere.tech'; // 国内使用
+    // 或者 const chatanywhereApiHost = 'https://api.chatanywhere.org'; // 国外使用
+    // 默认按照 OpenAI Responses API 示例中的 store: true
+    const storeResponse = true;
     apiRequest = {
-        url: 'https://api.chatanywhere.orgc/v1', // 官方示例确认的 URL
+        url: `${chatanywhereApiHost}/v1/responses`, // 使用 ChatAnywhere 的接入点和 Responses API 的路径
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
         body: JSON.stringify({
-            model: "gpt-4o-mini", // 官方示例确认的模型名称
-            input: finalInputText, // input 参数现在是一个字符串
-            store: storeResponse   // 官方示例中包含的参数
+            model: "gpt-5-nano", // 保持不变，因为 OpenAI 示例中使用了它
+            input: finalInputText, // input 参数为字符串
+            store: storeResponse
         })
     };
     break;
