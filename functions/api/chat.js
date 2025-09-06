@@ -1,105 +1,137 @@
 // This is the backend API proxy running on Cloudflare Functions.
-// It securely handles API requests to different AI models.
+// It securely handles API requests to different AI models, including multimodal (image) inputs.
 
 export async function onRequestPost(context) {
     try {
-        // 1. Get request data from the frontend
         const { request, env } = context;
-        const { model, messages } = await request.json();
+        const { model, messages, image } = await request.json(); // Extract image from request
 
-        // 2. Prepare the request for the selected AI model API
+        // Helper function to extract base64 data and mime type from a data URL
+        const parseBase64 = (base64String) => {
+            const match = base64String.match(/^data:(image\/.+);base64,(.+)$/);
+            if (!match) return { mimeType: null, data: null };
+            return { mimeType: match[1], data: match[2] };
+        };
+
         let apiRequest;
+        const { mimeType, data: imageData } = image ? parseBase64(image) : { mimeType: null, data: null };
+
+        // Get the last user message text
+        const lastUserMessage = messages.filter(m => m.role === 'user').pop()?.content || '';
+
         switch (model) {
             case 'gemini':
-                // TODO: Replace with actual Google Gemini API call
-                // API Key is securely accessed from Cloudflare's environment variables
                 const geminiApiKey = env.GEMINI_API_KEY;
                 if (!geminiApiKey) throw new Error("GEMINI_API_KEY is not set");
+
+                // Gemini requires a specific content format for images
+                const geminiContents = messages.map(msg => ({
+                    role: msg.role === 'assistant' ? 'model' : 'user',
+                    parts: [{ text: msg.content }]
+                }));
+
+                if (imageData) {
+                    // Find the last user message and add the image part to it
+                    const lastUserContent = geminiContents.filter(c => c.role === 'user').pop();
+                    if (lastUserContent) {
+                        lastUserContent.parts.push({
+                            inline_data: { mime_type: mimeType, data: imageData }
+                        });
+                    }
+                }
                 
-                // This is a placeholder. You'll need to structure the request
-                // according to the Gemini API documentation.
                 apiRequest = {
-                    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${geminiApiKey}`,
+                    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent?key=${geminiApiKey}`,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ contents: messages.map(msg => ({ role: msg.role === 'assistant' ? 'model' : 'user', parts: [{ text: msg.content }] })) })
+                    body: JSON.stringify({ contents: geminiContents })
                 };
                 break;
 
             case 'chatgpt':
-                // TODO: Replace with actual OpenAI API call
                 const openaiApiKey = env.OPENAI_API_KEY;
                 if (!openaiApiKey) throw new Error("OPENAI_API_KEY is not set");
+
+                const gptMessages = [...messages];
+                if (imageData) {
+                    // For GPT-4o, add the image URL to the last user message's content
+                    const lastUserMsg = gptMessages.filter(m => m.role === 'user').pop();
+                    if (lastUserMsg) {
+                        lastUserMsg.content = [
+                            { type: "text", text: lastUserMsg.content },
+                            { type: "image_url", image_url: { url: image } }
+                        ];
+                    }
+                }
 
                 apiRequest = {
                     url: 'https://api.openai.com/v1/chat/completions',
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${openaiApiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: "gpt-3.5-turbo", // or "gpt-4"
-                        messages: messages
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
+                    body: JSON.stringify({ model: "gpt-4o", messages: gptMessages })
                 };
                 break;
 
             case 'deepseek':
-                 // TODO: Replace with actual DeepSeek API call
                 const deepseekApiKey = env.DEEPSEEK_API_KEY;
                 if (!deepseekApiKey) throw new Error("DEEPSEEK_API_KEY is not set");
+                
+                const dsMessages = [...messages];
+                if (imageData) {
+                     const lastUserMsg = dsMessages.filter(m => m.role === 'user').pop();
+                     if(lastUserMsg) {
+                        lastUserMsg.content = [
+                            { type: "text", text: lastUserMsg.content },
+                            { type: "image_url", image_url: { url: image } }
+                        ];
+                     }
+                }
 
                 apiRequest = {
                     url: 'https://api.deepseek.com/chat/completions',
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${deepseekApiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: "deepseek-chat",
-                        messages: messages
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepseekApiKey}` },
+                    body: JSON.stringify({ model: "deepseek-vl-chat", messages: dsMessages })
                 };
                 break;
 
             case 'qwen':
-                // TODO: Replace with actual Alibaba Qwen API call
                 const qwenApiKey = env.QWEN_API_KEY;
                 if (!qwenApiKey) throw new Error("QWEN_API_KEY is not set");
-                
+
+                const qwenMessages = messages.map(msg => {
+                    if (msg.role === 'user' && imageData && msg.content === lastUserMessage) {
+                        // This is the message with the image
+                        return {
+                            role: msg.role,
+                            content: [
+                                { image: image }, // Qwen expects the data URL directly
+                                { text: msg.content }
+                            ]
+                        };
+                    }
+                    return { role: msg.role, content: msg.content };
+                });
+
                 apiRequest = {
-                    url: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+                    url: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation',
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${qwenApiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: "qwen-turbo",
-                        input: { messages: messages }
-                    })
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${qwenApiKey}` },
+                    body: JSON.stringify({ model: "qwen-vl-plus", input: { messages: qwenMessages } })
                 };
                 break;
 
             default:
-                return new Response(JSON.stringify({ error: 'Invalid model selected' }), {
-                    status: 400,
-                    headers: { 'Content-Type': 'application/json' },
-                });
+                return new Response(JSON.stringify({ error: 'Invalid model selected' }), { status: 400 });
         }
 
-        // 3. Make the actual API call
         const apiResponse = await fetch(apiRequest.url, apiRequest);
         if (!apiResponse.ok) {
             const errorText = await apiResponse.text();
-            console.error(`API Error from ${model}: ${errorText}`);
-            throw new Error(`Failed to fetch from ${model} API`);
+            throw new Error(`API Error from ${model}: ${errorText}`);
         }
         const data = await apiResponse.json();
 
-        // 4. Extract the reply from the specific API response structure
         let reply = '';
         switch (model) {
             case 'gemini':
@@ -110,11 +142,10 @@ export async function onRequestPost(context) {
                 reply = data.choices[0].message.content;
                 break;
             case 'qwen':
-                reply = data.output.text;
+                reply = data.output.choices[0].message.content[0].text;
                 break;
         }
 
-        // 5. Send the extracted reply back to the frontend
         return new Response(JSON.stringify({ reply }), {
             status: 200,
             headers: { 'Content-Type': 'application/json' },
@@ -122,9 +153,6 @@ export async function onRequestPost(context) {
 
     } catch (error) {
         console.error('Error in Cloudflare Function:', error);
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
     }
 }

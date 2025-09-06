@@ -6,6 +6,8 @@
     <title>AI Web Chat</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
+    <!-- 添加一个图标库用于“回形针”图标 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
     <div class="chat-container">
@@ -14,17 +16,25 @@
             <div class="model-selector">
                 <label for="model-select">选择模型:</label>
                 <select id="model-select">
-                    <option value="gemini">Gemini</option>
-                    <option value="chatgpt">ChatGPT</option>
-                    <option value="deepseek">DeepSeek</option>
-                    <option value="qwen">通义千问</option>
+                    <option value="gemini">Gemini Vision</option>
+                    <option value="chatgpt">ChatGPT-4o</option>
+                    <option value="deepseek">DeepSeek-VL</option>
+                    <option value="qwen">通义千问-VL</option>
                 </select>
             </div>
         </header>
         <main id="chat-window" class="chat-window"></main>
         <footer class="chat-input-area">
+            <!-- 图片预览区域 -->
+            <div id="image-preview-container" class="image-preview-container"></div>
             <form id="chat-form" class="chat-form">
-                <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off" required>
+                <!-- 隐藏的文件输入框 -->
+                <input type="file" id="file-input" accept="image/*" style="display: none;">
+                <!-- 图片上传按钮 -->
+                <button type="button" id="upload-button" class="upload-button">
+                    <i class="fa-solid fa-paperclip"></i>
+                </button>
+                <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off">
                 <button type="submit">发送</button>
             </form>
         </footer>
