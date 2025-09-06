@@ -1,74 +1,59 @@
 // --- 全局变量定义 ---
-// 通过 const 定义常量，保存对页面上重要 DOM 元素的引用。
-// 这样做可以避免在函数中反复查询 DOM，提高性能。
-
-const chatWindow = document.getElementById('chat-window'); // 聊天消息显示区域
-const chatForm = document.getElementById('chat-form'); // 底部的表单
-const messageInput = document.getElementById('message-input'); // 文本输入框
-const modelSelect = document.getElementById('model-select'); // 模型选择下拉框
-const sendButton = chatForm.querySelector('button[type="submit"]'); // 发送按钮
-const uploadButton = document.getElementById('upload-button'); // 图片上传按钮
-const fileInput = document.getElementById('file-input'); // 隐藏的文件选择框
-const imagePreviewContainer = document.getElementById('image-preview-container'); // 图片预览区域
+const chatWindow = document.getElementById('chat-window');
+const chatForm = document.getElementById('chat-form');
+const messageInput = document.getElementById('message-input');
+const modelSelect = document.getElementById('model-select');
+const sendButton = chatForm.querySelector('button[type="submit"]');
+const uploadButton = document.getElementById('upload-button');
+const fileInput = document.getElementById('file-input');
+const imagePreviewContainer = document.getElementById('image-preview-container');
 
 // --- 应用状态管理 ---
-// 使用 let 定义变量，用于存储应用在运行过程中的状态。
-
-let conversationHistory = []; // 存储整个对话历史记录，用于发送给 API 以维持上下文
-let attachedImageBase64 = null; // 用于存储当前选中的、已编码为 Base64 的图片数据。发送后会清空。
+let conversationHistory = [];
+let attachedImageBase64 = null;
 
 // --- 核心功能函数 ---
 
 /**
- * 向聊天窗口添加一条消息。这是一个非常核心的 UI 更新函数。
- * 它可以灵活处理只包含文本、只包含图片或图文混合的消息。
- * @param {string} sender - 消息的发送者，'user' 或 'assistant'。这个参数决定了消息气泡的样式和位置。
- * @param {string} [text] - (可选) 消息的文本内容。
- * @param {string|null} [imageBase64] - (可选) 要在消息中显示的图片的 Base64 数据 URL。
- * @returns {HTMLElement} 返回新创建的消息元素，方便后续操作（如移除加载动画）。
+ * 向聊天窗口添加一条消息。
+ * @param {string} sender - 'user' 或 'assistant'。
+ * @param {string} [text] - 消息的文本内容。
+ * @param {string|null} [imageBase64] - 图片的 Base64 数据 URL。
+ * @returns {HTMLElement} 返回新创建的消息元素。
  */
 function addMessage(sender, text, imageBase64 = null) {
-    // 1. 创建消息的最外层容器 <div>
     const messageElement = document.createElement('div');
-    messageElement.classList.add('message', sender); // 添加 'message' 和发送者 ('user'/'assistant') 类名
+    messageElement.classList.add('message', sender);
 
-    // 2. 创建消息内容的容器 <div>
     const contentElement = document.createElement('div');
     contentElement.classList.add('message-content');
 
-    // 3. 如果存在图片数据，则创建并添加图片元素
     if (imageBase64) {
         const imageElement = document.createElement('img');
-        imageElement.src = imageBase64; // Base64 数据可以直接作为图片的 src
+        imageElement.src = imageBase64;
         imageElement.alt = '用户上传的图片';
-        imageElement.loading = 'lazy'; // 延迟加载图片，提高性能
-        contentElement.appendChild(imageElement); // 将图片添加到内容容器中
+        imageElement.loading = 'lazy';
+        contentElement.appendChild(imageElement);
     }
 
-    // 4. 如果存在文本内容，则创建并添加文本节点
-    // 使用 createTextNode 而不是 innerHTML 是为了防止 XSS (跨站脚本) 攻击，确保文本内容被当作纯文本处理。
     if (text) {
         const textNode = document.createTextNode(text);
-        contentElement.appendChild(textNode); // 将文本添加到内容容器中
+        contentElement.appendChild(textNode);
     }
     
-    // 5. 组装并显示消息
-    messageElement.appendChild(contentElement); // 将内容容器添加到消息外层容器
-    chatWindow.appendChild(messageElement); // 将完整的消息元素添加到聊天窗口
-    
-    // 6. 自动滚动到聊天窗口的底部，确保最新的消息总是可见的
+    messageElement.appendChild(contentElement);
+    chatWindow.appendChild(messageElement);
     chatWindow.scrollTop = chatWindow.scrollHeight;
     return messageElement;
 }
 
 /**
  * 在聊天窗口中显示一个“正在输入”的加载动画。
- * 这能给用户一个即时的反馈，让他们知道应用正在处理他们的请求。
  * @returns {HTMLElement} 返回新创建的加载指示器元素。
  */
 function showTypingIndicator() {
     const indicatorElement = document.createElement('div');
-    indicatorElement.classList.add('message', 'assistant', 'loading'); // 使用和助手消息类似的样式
+    indicatorElement.classList.add('message', 'assistant', 'loading');
     indicatorElement.innerHTML = `
         <div class="message-content">
             <div class="typing-indicator">
@@ -80,16 +65,16 @@ function showTypingIndicator() {
     `;
     chatWindow.appendChild(indicatorElement);
     chatWindow.scrollTop = chatWindow.scrollHeight;
-    return indicatorElement; // 返回这个元素的引用，方便之后移除它
+    return indicatorElement;
 }
 
 /**
  * 清除图片预览区域的内容，并重置相关的状态变量。
  */
 function clearImagePreview() {
-    imagePreviewContainer.innerHTML = ''; // 清空预览区的 HTML
-    attachedImageBase64 = null; // 重置 Base64 数据状态
-    fileInput.value = ''; // 重置文件输入框的值。这很重要，否则用户无法连续选择同一张图片。
+    imagePreviewContainer.innerHTML = '';
+    attachedImageBase64 = null;
+    fileInput.value = '';
 }
 
 /**
@@ -98,15 +83,15 @@ function clearImagePreview() {
  * @param {HTMLElement} typingIndicator - 之前显示的“正在输入”指示器元素。
  */
 async function handleStreamedResponse(response, typingIndicator) {
-    chatWindow.removeChild(typingIndicator); // 移除加载动画
+    // 重要：确保此时 response 的 body 尚未被读取
+    chatWindow.removeChild(typingIndicator);
 
-    const reader = response.body.getReader();
+    const reader = response.body.getReader(); // 读取原始 response 的 body
     const decoder = new TextDecoder('utf-8');
-    let assistantMessageElement = null; // 用于存储 AI 消息的 DOM 元素
-    let accumulatedContent = ''; // 累积 AI 返回的文本
+    let assistantMessageElement = null;
+    let accumulatedContent = '';
 
-    // 创建一个新的消息元素用于显示流式回复
-    assistantMessageElement = addMessage('assistant', ''); // 先添加一个空文本的消息元素
+    assistantMessageElement = addMessage('assistant', '');
 
     while (true) {
         const { value, done } = await reader.read();
@@ -116,10 +101,7 @@ async function handleStreamedResponse(response, typingIndicator) {
         }
 
         const chunk = decoder.decode(value, { stream: true });
-        // console.log("Received chunk:", chunk); // 调试用
 
-        // 这里需要针对不同模型的 SSE 格式进行解析
-        // 以 OpenAI (chatgpt 和 deepseek) 为例，SSE 数据通常以 "data: " 开头
         const lines = chunk.split('\n');
         for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -130,34 +112,27 @@ async function handleStreamedResponse(response, typingIndicator) {
                 try {
                     const data = JSON.parse(jsonStr);
                     let part = '';
-                    // 根据模型响应结构提取文本
-                    // 对于 OpenAI 兼容的 API (如 chatgpt, deepseek)，数据结构如下
                     if (data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content) {
                         part = data.choices[0].delta.content;
-                    } 
-                    // 如果未来有其他流式模型，可能需要在这里添加更多逻辑来解析它们的响应
-                    // else if (data.other_model_specific_field) { ... }
+                    }
                     
                     if (part) {
                         accumulatedContent += part;
-                        // 更新已存在的消息元素的内容
                         assistantMessageElement.querySelector('.message-content').textContent = accumulatedContent;
-                        chatWindow.scrollTop = chatWindow.scrollHeight; // 保持滚动到底部
+                        chatWindow.scrollTop = chatWindow.scrollHeight;
                     }
                 } catch (e) {
                     console.error("Error parsing SSE JSON:", e, "Line:", jsonStr);
-                    // 可以在这里显示一个简化错误信息
-                    if (!accumulatedContent) { // 如果还没有任何内容，显示错误
+                    if (!accumulatedContent) {
                          assistantMessageElement.querySelector('.message-content').textContent = "接收到无效的流数据，请检查后端。";
                     }
                 }
-            } else if (line.trim() !== '') { // 处理非 "data: " 开头的行，可能是头部信息或其他
+            } else if (line.trim() !== '') {
                 console.warn("Unexpected line in SSE stream:", line);
             }
         }
     }
 
-    // 将完整的 AI 回复添加到对话历史中
     if (accumulatedContent) {
         conversationHistory.push({ role: 'assistant', content: accumulatedContent });
     }
@@ -165,31 +140,21 @@ async function handleStreamedResponse(response, typingIndicator) {
 
 
 // --- 事件监听器设置 ---
-// 这里我们将功能逻辑与用户的交互行为绑定起来。
 
-// 监听图片上传按钮的点击事件
 uploadButton.addEventListener('click', () => {
-    // 当用户点击我们自定义的漂亮按钮时，我们以编程方式触发那个隐藏的、样式丑陋的文件输入框的点击事件。
-    // 这是一个常见的前端技巧，用于自定义文件上传按钮的样式。
     fileInput.click();
 });
 
-// 监听文件输入框的 'change' 事件。当用户选择了文件后，这个事件就会被触发。
 fileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0]; // 获取用户选择的第一个文件
+    const file = e.target.files[0];
     
-    // 确保用户选择的是一个图片文件
     if (file && file.type.startsWith('image/')) {
-        // FileReader 是一个浏览器提供的 API，用于异步读取文件内容。
         const reader = new FileReader();
         
-        // 设置当文件读取完成时的回调函数
         reader.onload = (event) => {
-            // event.target.result 包含了文件的 Base64 数据 URL
             attachedImageBase64 = event.target.result;
             
-            // --- 创建并显示图片预览 ---
-            imagePreviewContainer.innerHTML = ''; // 先清空之前的预览
+            imagePreviewContainer.innerHTML = '';
             const previewWrapper = document.createElement('div');
             previewWrapper.className = 'image-preview-item';
             
@@ -198,64 +163,49 @@ fileInput.addEventListener('change', (e) => {
             
             const removeBtn = document.createElement('button');
             removeBtn.className = 'remove-image-btn';
-            removeBtn.innerHTML = '&times;'; // 显示一个 "×" 符号
-            removeBtn.onclick = clearImagePreview; // 点击移除按钮时，调用清除函数
+            removeBtn.innerHTML = '&times;';
+            removeBtn.onclick = clearImagePreview;
             
             previewWrapper.appendChild(previewImg);
             previewWrapper.appendChild(removeBtn);
             imagePreviewContainer.appendChild(previewWrapper);
         };
         
-        // 启动文件读取过程。这会将整个图片文件编码成一个 Base64 字符串。
         reader.readAsDataURL(file);
-    } else if (file) { // 如果用户选择了文件但不是图片
+    } else if (file) {
         alert('请选择一个图片文件！');
-        fileInput.value = ''; // 清空文件输入框
+        fileInput.value = '';
     }
 });
 
-// 监听表单的 'submit' 事件。这是应用的核心交互逻辑。
 chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault(); // <-- 核心修复：阻止表单的默认提交行为（即刷新页面）
+    e.preventDefault();
     
-    const userMessage = messageInput.value.trim(); // 获取输入框中的文本，并移除首尾空格
+    const userMessage = messageInput.value.trim();
 
-    // 验证：必须有文本或图片才能发送
     if (!userMessage && !attachedImageBase64) {
         console.log("没有输入文本或选择图片，取消发送。");
-        return; // 如果两者都为空，则不执行任何操作
+        return;
     }
 
-    const selectedModel = modelSelect.value; // 获取当前选择的模型
-
-    // 1. 乐观更新 UI：立即在界面上显示用户的消息，让用户感觉应用响应迅速。
-    // 注意：我们将图片视为用户消息的一部分，在UI中立即显示。
+    const selectedModel = modelSelect.value;
     addMessage('user', userMessage, attachedImageBase64);
     
-    // 2. 更新对话历史：将用户的文本消息添加到历史记录中。
-    // 图片数据会作为单独的字段在请求体中发送，而不是直接混入历史记录。
-    // 这里只添加纯文本到 `conversationHistory`，因为后端 `functions/api/chat.js` 会处理图像的特定格式。
     if (userMessage) {
         conversationHistory.push({ role: 'user', content: userMessage });
     } else if (attachedImageBase64) {
-        // 如果只有图片没有文本，也需要给一个占位符，否则有些模型可能会有问题
-        // 后端可能需要这个内容来生成视觉模型的描述
         conversationHistory.push({ role: 'user', content: "（用户发送了一张图片）" });
     }
 
+    const typingIndicator = showTypingIndicator();
+    const currentImageBase64 = attachedImageBase64;
 
-    // 3. 准备发送 API 请求
-    const typingIndicator = showTypingIndicator(); // 显示加载动画
-    const currentImageBase64 = attachedImageBase64; // 临时保存当前要发送的图片数据
-
-    // 4. 清理和禁用输入：在请求发送期间，清空输入框和预览，并禁用所有输入控件，防止用户重复发送。
     messageInput.value = '';
     clearImagePreview();
     sendButton.disabled = true;
     modelSelect.disabled = true;
     uploadButton.disabled = true;
 
-    // 5. 使用 try...catch...finally 结构来健壮地处理异步 API 请求
     try {
         const fetchOptions = {
             method: 'POST',
@@ -263,13 +213,13 @@ chatForm.addEventListener('submit', async (e) => {
             body: JSON.stringify({
                 model: selectedModel,
                 messages: conversationHistory,
-                image: currentImageBase64, // 将捕获的图片数据包含在请求中
+                image: currentImageBase64,
             }),
         };
 
         const response = await fetch('/api/chat', fetchOptions);
 
-        // --- 关键修复：在处理响应之前克隆它 ---
+        // --- 核心修复：在检查 response.ok 之前克隆响应 ---
         // 克隆响应，以便可以在错误处理和正常流程中独立地读取其主体流。
         const clonedResponse = response.clone(); 
 
@@ -277,33 +227,35 @@ chatForm.addEventListener('submit', async (e) => {
         if (!response.ok) {
             let errorMessage = 'API 请求失败';
             try {
-                // 尝试从克隆的响应中解析 JSON 错误信息
+                // *** 错误处理中只使用 clonedResponse ***
                 const errorData = await clonedResponse.json(); 
-                errorMessage = errorData.error || '未知 API 错误';
+                errorMessage = errorData.error || `API 错误: ${response.status} ${response.statusText}`;
             } catch (jsonError) {
-                // 如果不是 JSON，则尝试读取纯文本错误信息
+                // 如果不是 JSON，尝试读取纯文本错误信息
                 const errorText = await clonedResponse.text();
-                errorMessage = `API 请求失败: ${errorText.substring(0, 200)}...`; // 截断避免过长
+                errorMessage = `API 请求失败: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}...`;
                 console.error("Error parsing API error response as JSON:", jsonError, "Raw text:", errorText);
             }
-            throw new Error(errorMessage); // 抛出错误，会被 catch 块捕获
+            // 抛出错误以进入 catch 块
+            throw new Error(errorMessage); 
         }
 
-        // 根据原始响应的 Content-Type 来判断是否是流式响应
+        // --- 正常处理流程，使用原始 response ---
+        // 检查原始 response 的 Content-Type 来判断是否是流式响应
         const contentType = response.headers.get('Content-Type');
         if (contentType && contentType.includes('text/event-stream')) {
-            // 处理流式响应，使用原始 'response' 对象（它拥有完整的流）
+            // 处理流式响应，直接使用原始 response
             await handleStreamedResponse(response, typingIndicator);
         } else {
-            // 处理非流式（普通 JSON）响应，也使用原始 'response' 对象
-            const data = await response.json(); // 解析成功的 JSON 响应
-            const assistantMessage = data.reply; // 提取 AI 的回复文本
+            // 处理非流式（普通 JSON）响应，也使用原始 response
+            // 注意：这里是唯一一次调用 response.json()，确保原始 body 只在此处被读取
+            const data = await response.json(); 
+            const assistantMessage = data.reply;
 
-            // 6. 更新状态和 UI：将 AI 的回复也添加到对话历史中
-            if (assistantMessage) { // 确保有内容才添加到历史和UI
+            if (assistantMessage) {
                 conversationHistory.push({ role: 'assistant', content: assistantMessage });
-                chatWindow.removeChild(typingIndicator); // 先移除加载动画
-                addMessage('assistant', assistantMessage); // 再显示 AI 的消息
+                chatWindow.removeChild(typingIndicator);
+                addMessage('assistant', assistantMessage);
             } else {
                 console.warn('API 返回了空回复。');
                 chatWindow.removeChild(typingIndicator);
@@ -312,32 +264,24 @@ chatForm.addEventListener('submit', async (e) => {
         }
 
     } catch (error) {
-        // 如果在 try 块中发生任何错误（网络问题、API 失败等），代码会跳转到这里
-        console.error('前端错误:', error); // 在浏览器控制台打印详细错误，方便调试
-        // 确保加载动画在错误发生时被移除 (即使它可能已经被移除了)
+        console.error('前端错误:', error);
         if (typingIndicator && chatWindow.contains(typingIndicator)) {
             chatWindow.removeChild(typingIndicator); 
         }
-        addMessage('assistant', `抱歉，出错了: ${error.message}`); // 在界面上向用户显示一个友好的错误提示
+        addMessage('assistant', `抱歉，出错了: ${error.message}`);
     } finally {
-        // 无论请求成功还是失败，finally 块中的代码都一定会执行
-        // 8. 恢复界面：重新启用输入控件，让用户可以开始下一次对话
         sendButton.disabled = false;
         modelSelect.disabled = false;
         uploadButton.disabled = false;
-        messageInput.focus(); // 将光标自动聚焦到输入框，方便用户继续输入
+        messageInput.focus();
     }
 });
 
-// 在页面加载完成后将光标聚焦到输入框
 document.addEventListener('DOMContentLoaded', () => {
     messageInput.focus();
-    // 初始清空图片预览，以防浏览器缓存
     clearImagePreview();
-    // 检查是否有模型选择的默认值，如果没有则可以设置或提示
     if (!modelSelect.value) {
-        modelSelect.value = 'gemini'; // 默认选择 Gemini
+        modelSelect.value = 'gemini';
         console.warn("模型选择器没有默认值，已设置为 'gemini'。");
     }
 });
-
