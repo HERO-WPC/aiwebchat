@@ -131,9 +131,12 @@ async function handleStreamedResponse(response, typingIndicator) {
                     const data = JSON.parse(jsonStr);
                     let part = '';
                     // 根据模型响应结构提取文本
+                    // 对于 OpenAI 兼容的 API (如 chatgpt, deepseek)，数据结构如下
                     if (data.choices && data.choices[0] && data.choices[0].delta && data.choices[0].delta.content) {
                         part = data.choices[0].delta.content;
-                    }
+                    } 
+                    // 如果未来有其他流式模型，可能需要在这里添加更多逻辑来解析它们的响应
+                    // else if (data.other_model_specific_field) { ... }
                     
                     if (part) {
                         accumulatedContent += part;
@@ -143,7 +146,13 @@ async function handleStreamedResponse(response, typingIndicator) {
                     }
                 } catch (e) {
                     console.error("Error parsing SSE JSON:", e, "Line:", jsonStr);
+                    // 可以在这里显示一个简化错误信息
+                    if (!accumulatedContent) { // 如果还没有任何内容，显示错误
+                         assistantMessageElement.querySelector('.message-content').textContent = "接收到无效的流数据，请检查后端。";
+                    }
                 }
+            } else if (line.trim() !== '') { // 处理非 "data: " 开头的行，可能是头部信息或其他
+                console.warn("Unexpected line in SSE stream:", line);
             }
         }
     }
@@ -213,6 +222,7 @@ chatForm.addEventListener('submit', async (e) => {
 
     // 验证：必须有文本或图片才能发送
     if (!userMessage && !attachedImageBase64) {
+        console.log("没有输入文本或选择图片，取消发送。");
         return; // 如果两者都为空，则不执行任何操作
     }
 
@@ -229,7 +239,8 @@ chatForm.addEventListener('submit', async (e) => {
         conversationHistory.push({ role: 'user', content: userMessage });
     } else if (attachedImageBase64) {
         // 如果只有图片没有文本，也需要给一个占位符，否则有些模型可能会有问题
-        conversationHistory.push({ role: 'user', content: "用户发送了一张图片。" });
+        // 后端可能需要这个内容来生成视觉模型的描述
+        conversationHistory.push({ role: 'user', content: "（用户发送了一张图片）" });
     }
 
 
@@ -246,39 +257,45 @@ chatForm.addEventListener('submit', async (e) => {
 
     // 5. 使用 try...catch...finally 结构来健壮地处理异步 API 请求
     try {
-        // 发送网络请求到我们的后端 API 代理 (Cloudflare Function)
-        const response = await fetch('/api/chat', { // 注意这里的路径 '/api/chat' 假设你的 Cloudflare Worker 路由是这样设置的
+        const fetchOptions = {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // 构建发送到后端的 JSON 数据体
             body: JSON.stringify({
                 model: selectedModel,
                 messages: conversationHistory,
                 image: currentImageBase64, // 将捕获的图片数据包含在请求中
             }),
-        });
+        };
+
+        const response = await fetch('/api/chat', fetchOptions);
+
+        // --- 关键修复：在处理响应之前克隆它 ---
+        // 克隆响应，以便可以在错误处理和正常流程中独立地读取其主体流。
+        const clonedResponse = response.clone(); 
 
         // 如果服务器响应的 HTTP 状态码不是 2xx (不成功)
         if (!response.ok) {
-            // 尝试解析错误信息，确保错误处理足够健壮
             let errorMessage = 'API 请求失败';
             try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorMessage;
+                // 尝试从克隆的响应中解析 JSON 错误信息
+                const errorData = await clonedResponse.json(); 
+                errorMessage = errorData.error || '未知 API 错误';
             } catch (jsonError) {
-                const errorText = await response.text();
-                errorMessage = `API 请求失败: ${errorText.substring(0, 100)}`; // 截断避免过长
+                // 如果不是 JSON，则尝试读取纯文本错误信息
+                const errorText = await clonedResponse.text();
+                errorMessage = `API 请求失败: ${errorText.substring(0, 200)}...`; // 截断避免过长
+                console.error("Error parsing API error response as JSON:", jsonError, "Raw text:", errorText);
             }
-            throw new Error(errorMessage); // 抛出一个错误，会被下面的 catch 捕获
+            throw new Error(errorMessage); // 抛出错误，会被 catch 块捕获
         }
 
-        // 根据响应头的 Content-Type 来判断是否是流式响应
+        // 根据原始响应的 Content-Type 来判断是否是流式响应
         const contentType = response.headers.get('Content-Type');
         if (contentType && contentType.includes('text/event-stream')) {
-            // 处理流式响应
+            // 处理流式响应，使用原始 'response' 对象（它拥有完整的流）
             await handleStreamedResponse(response, typingIndicator);
         } else {
-            // 处理非流式（普通 JSON）响应
+            // 处理非流式（普通 JSON）响应，也使用原始 'response' 对象
             const data = await response.json(); // 解析成功的 JSON 响应
             const assistantMessage = data.reply; // 提取 AI 的回复文本
 
@@ -297,8 +314,9 @@ chatForm.addEventListener('submit', async (e) => {
     } catch (error) {
         // 如果在 try 块中发生任何错误（网络问题、API 失败等），代码会跳转到这里
         console.error('前端错误:', error); // 在浏览器控制台打印详细错误，方便调试
+        // 确保加载动画在错误发生时被移除 (即使它可能已经被移除了)
         if (typingIndicator && chatWindow.contains(typingIndicator)) {
-            chatWindow.removeChild(typingIndicator); // 同样要移除加载动画
+            chatWindow.removeChild(typingIndicator); 
         }
         addMessage('assistant', `抱歉，出错了: ${error.message}`); // 在界面上向用户显示一个友好的错误提示
     } finally {
@@ -315,6 +333,11 @@ chatForm.addEventListener('submit', async (e) => {
 document.addEventListener('DOMContentLoaded', () => {
     messageInput.focus();
     // 初始清空图片预览，以防浏览器缓存
-    clearImagePreview(); 
+    clearImagePreview();
+    // 检查是否有模型选择的默认值，如果没有则可以设置或提示
+    if (!modelSelect.value) {
+        modelSelect.value = 'gemini'; // 默认选择 Gemini
+        console.warn("模型选择器没有默认值，已设置为 'gemini'。");
+    }
 });
 
