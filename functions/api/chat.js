@@ -135,49 +135,58 @@ export async function onRequestPost(context) {
 
 
             case 'deepseek':
-                const deepseekApiKey = env.DEEPSEEK_API_KEY; // 依然使用 ChatAnywhere 的 API Key
-                if (!deepseekApiKey) throw new Error("DEEPSEEK_API_KEY 环境变量未设置"); // 修正环境变量名
+                const deepseekApiKey = env.OPENROUTER_API_KEY; // 将环境变量改为 OPENROUTER_API_KEY
+                if (!deepseekApiKey) throw new Error("OPENROUTER_API_KEY 环境变量未设置"); // 抛出错误时也更新环境变量名
 
-                let finalMessagesDeepseek = []; // 使用 let 并重命名以避免冲突
+                let finalMessagesDeepseek = [];
 
-                // 处理当前的用户输入，包括可能的图片
-                const currentUserMessageDeepseek = messages[messages.length - 1]; // 使用 let 并重命名以避免冲突
-                if (currentUserMessageDeepseek) {
-                    if (imageData && image) {
-                        // 多模态消息
+                // 添加系统消息（OpenRouter/OpenAI 兼容接口支持系统消息）
+                finalMessagesDeepseek.push({ role: 'system', content: '你是一个乐于助人的AI助手。' });
+
+                // 添加历史对话
+                if (messages && messages.length > 0) {
+                    messages.forEach((msg) => {
+                        // OpenRouter 对消息体格式与 OpenAI 兼容，content 可以直接是字符串
                         finalMessagesDeepseek.push({
-                            role: 'user',
-                            content: [
-                                { type: 'text', text: typeof currentUserMessageDeepseek.content === 'string' ? currentUserMessageDeepseek.content : '' }, // 文本部分
-                                { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageData}` } } // 使用 mimeType
-                            ]
+                            role: msg.role,
+                            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
                         });
-                    } else {
-                        // 纯文本消息
-                        finalMessagesDeepseek.push({
-                            role: 'user',
-                            content: typeof currentUserMessageDeepseek.content === 'string' ? currentUserMessageDeepseek.content : JSON.stringify(currentUserMessageDeepseek.content)
-                        });
-                    }
+                    });
                 }
 
-                const chatanywhereApiHostDeepseek = 'https://openrouter.ai/api'; // 国内使用 // 使用 let 并重命名以避免冲突
-                
+                // 处理当前的用户输入，包括可能的图片
+                // OpenRouter 上的 deepseek-chat-v3.1 模型目前不直接支持多模态（图片输入）
+
+                // 因此，以下代码会假设只有文本消息。
+                const currentUserMessageDeepseek = messages[messages.length - 1];
+                if (currentUserMessageDeepseek) {
+                    // 仅支持纯文本消息，忽略 imageData
+                    finalMessagesDeepseek.push({
+                        role: 'user',
+                        content: typeof currentUserMessageDeepseek.content === 'string' ? currentUserMessageDeepseek.content : JSON.stringify(currentUserMessageDeepseek.content)
+                    });
+                }
+
+
+                const openRouterApiHost = 'https://openrouter.ai'; // OpenRouter 的 API Host
 
                 apiRequest = {
-                    url: `${chatanywhereApiHostDeepseek}/v1`, // 注意：改变了 API 端点
+                    url: `${openRouterApiHost}/api/v1/chat/completions`, // OpenRouter 的 API 端点
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${deepseekApiKey}` // 使用 deepseekApiKey
+                        'Authorization': `Bearer ${deepseekApiKey}`,
+                        "HTTP-Referer": env.YOUR_SITE_URL || "https://example.com", // 从环境变量获取 YOUR_SITE_URL，或者提供一个默认值
+                        "X-Title": env.YOUR_SITE_NAME || "My AI Chat App" // 从环境变量获取 YOUR_SITE_NAME，或者提供一个默认值
                     },
                     body: JSON.stringify({
-                        model: "deepseek/deepseek-chat-v3.1:free", // Deepseek 的模型名称，请根据实际使用的模型进行调整
-                        messages: finalMessagesDeepseek, // 使用 messages 数组
-                        stream: true // 如果您希望流式传输响应，可以设置此项
+                        "model": "deepseek/deepseek-chat-v3.1:free", // 使用 OpenRouter 提供的 Deepseek 模型名称
+                        "messages": finalMessagesDeepseek,
+                        "stream": true // 如果您希望流式传输响应
                     })
                 };
                 break;
+
 
             case 'qwen':
                 const qwenApiKey = env.QWEN_API_KEY;
