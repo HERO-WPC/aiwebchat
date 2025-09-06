@@ -228,7 +228,7 @@ body {
     cursor: not-allowed;
 }
 
-/* --- 图片预览区域 --- */
+/*图片预览区域 */
 .image-preview-container {
     padding: 0 24px 10px;
     display: flex;
