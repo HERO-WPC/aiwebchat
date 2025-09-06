@@ -86,10 +86,10 @@ export async function onRequestPost(context) {
                 }
 
                 apiRequest = {
-                    url: 'https://api.openai.com/v1/chat/completions',
+                    url: 'https://api.chatanywhere.org',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
-                    body: JSON.stringify({ model: "gpt-4o", messages: gptMessages })
+                    body: JSON.stringify({ model: "gpt-5-mini", messages: gptMessages })
                 };
                 break;
 
