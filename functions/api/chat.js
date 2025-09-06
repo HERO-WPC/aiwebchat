@@ -178,11 +178,11 @@ export async function onRequestPost(context) {
                     }
                 }
 
-                const chatanywhereApiHostDeepseek = 'https://openrouter.ai/api/v1'; // 国内使用 // 使用 let 并重命名以避免冲突
+                const chatanywhereApiHostDeepseek = 'https://openrouter.ai/api'; // 国内使用 // 使用 let 并重命名以避免冲突
                 // const chatanywhereApiHostDeepseek = 'https://api.chatanywhere.org'; // 国外使用
 
                 apiRequest = {
-                    url: `${chatanywhereApiHostDeepseek}/v1/chat/completions`, // 注意：改变了 API 端点
+                    url: `${chatanywhereApiHostDeepseek}/v1`, // 注意：改变了 API 端点
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
