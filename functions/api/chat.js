@@ -178,7 +178,7 @@ export async function onRequestPost(context) {
                     }
                 }
 
-                const chatanywhereApiHostDeepseek = 'https://api.chatanywhere.tech'; // 国内使用 // 使用 let 并重命名以避免冲突
+                const chatanywhereApiHostDeepseek = 'https://openrouter.ai/api/v1'; // 国内使用 // 使用 let 并重命名以避免冲突
                 // const chatanywhereApiHostDeepseek = 'https://api.chatanywhere.org'; // 国外使用
 
                 apiRequest = {
@@ -189,7 +189,7 @@ export async function onRequestPost(context) {
                         'Authorization': `Bearer ${deepseekApiKey}` // 使用 deepseekApiKey
                     },
                     body: JSON.stringify({
-                        model: "deepseek-chat", // Deepseek 的模型名称，请根据实际使用的模型进行调整
+                        model: "deepseek/deepseek-chat-v3.1:free", // Deepseek 的模型名称，请根据实际使用的模型进行调整
                         messages: finalMessagesDeepseek, // 使用 messages 数组
                         stream: true // 如果您希望流式传输响应，可以设置此项
                     })
