@@ -116,7 +116,7 @@ case 'chatgpt':
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
         body: JSON.stringify({
-            model: "gpt-5-nano", // 官方示例确认的模型名称
+            model: "gpt-4o-mini", // 官方示例确认的模型名称
             input: finalInputText, // input 参数现在是一个字符串
             store: storeResponse   // 官方示例中包含的参数
         })
