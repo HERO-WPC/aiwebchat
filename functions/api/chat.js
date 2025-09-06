@@ -112,7 +112,7 @@ case 'chatgpt':
     const storeResponse = true; // 根据需求设置
 
     apiRequest = {
-        url: 'https://api.openai.com/v1/responses', // 官方示例确认的 URL
+        url: 'https://api.chatanywhere.orgc/v1', // 官方示例确认的 URL
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
         body: JSON.stringify({
