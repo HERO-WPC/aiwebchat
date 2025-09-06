@@ -69,29 +69,60 @@ export async function onRequestPost(context) {
                 };
                 break;
 
-            case 'chatgpt':
-                const openaiApiKey = env.OPENAI_API_KEY;
-                if (!openaiApiKey) throw new Error("OPENAI_API_KEY 环境变量未设置");
+case 'chatgpt':
+    const openaiApiKey = env.OPENAI_API_KEY;
+    if (!openaiApiKey) throw new Error("OPENAI_API_KEY 环境变量未设置");
 
-                const gptMessages = [...messages]; // 复制一份消息历史
-                // 如果有图片，GPT-4o 要求将最后一条用户消息的内容转换成一个包含文本和图片的数组。
-                if (imageData) {
-                    const lastUserMsg = gptMessages.filter(m => m.role === 'user').pop();
-                    if (lastUserMsg) {
-                        lastUserMsg.content = [
-                            { type: "text", text: lastUserMsg.content },
-                            { type: "image_url", image_url: { url: image } } //可以直接使用前端发来的完整 data URL
-                        ];
-                    }
+    const gptMessages = [...messages]; // 复制一份消息历史
+    let finalInputText = ""; // 用于存储最终发送的 input 字符串
+
+    // 处理图片逻辑
+    if (imageData && image) {
+        const lastUserMsg = gptMessages.filter(m => m.role === 'user').pop();
+        if (lastUserMsg) {
+            // 如果有图片，按照 GPT-4o 的要求，lastUserMsg.content 应该是数组。
+            // 但是 Responses API 的 input 期待的是字符串。
+            // 所以这里我们需要决定如何从包含图片的消息中提取文本部分作为 input。
+            // 最简单的处理是获取数组中 type 为 "text" 的第一个元素的文本。
+            if (Array.isArray(lastUserMsg.content)) {
+                const textPart = lastUserMsg.content.find(item => item.type === 'text');
+                if (textPart && typeof textPart.text === 'string') {
+                    finalInputText = textPart.text;
+                } else {
+                    console.warn("图片消息中未找到有效的文本部分，将使用空字符串作为 input。");
                 }
+            } else if (typeof lastUserMsg.content === 'string') {
+                finalInputText = lastUserMsg.content;
+            } else {
+                console.warn("最后一条用户消息内容格式不支持，将使用空字符串作为 input。");
+            }
+        } else {
+            console.warn("未能找到最后一条用户消息来处理图片内容，将使用空字符串作为 input。");
+        }
+    } else {
+        // 如果没有图片，从最后一条用户消息中提取文本内容
+        const lastUserMsg = gptMessages.filter(m => m.role === 'user').pop();
+        if (lastUserMsg && typeof lastUserMsg.content === 'string') {
+            finalInputText = lastUserMsg.content;
+        }
+    }
 
-                apiRequest = {
-                    url: 'https://api.openai.com/v1/responses',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
-                    body: JSON.stringify({ model: "gpt-5-nano", inupt: gptMessages })
-                };
-                break;
+    // 您可以根据需要决定是否始终添加 `store: true`
+    // 如果您不想存储响应，可以删除这一行或者将其设置为 `false`
+    const storeResponse = true; // 根据需求设置
+
+    apiRequest = {
+        url: 'https://api.openai.com/v1/responses', // 官方示例确认的 URL
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${openaiApiKey}` },
+        body: JSON.stringify({
+            model: "gpt-5-nano", // 官方示例确认的模型名称
+            input: finalInputText, // input 参数现在是一个字符串
+            store: storeResponse   // 官方示例中包含的参数
+        })
+    };
+    break;
+
 
             case 'deepseek':
                 const deepseekApiKey = env.DEEPSEEK_API_KEY;
