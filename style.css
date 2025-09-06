@@ -39,9 +39,9 @@ body {
     /* 1. 半透明背景色：这是底层颜色，决定了“玻璃”的颜色和不透明度 */
     background-color: rgba(20, 20, 25, 0.5); 
     /* 2. 背景模糊滤镜：这是实现“磨砂”效果的关键，它会模糊容器背后的所有内容 */
-    backdrop-filter: blur(25px) saturate(150%);
+    backdrop-filter: blur(0px) saturate(150%);
     /* 3. 兼容性前缀：确保在 Safari 等基于 Webkit 的浏览器中也能生效 */
-    -webkit-backdrop-filter: blur(25px) saturate(150%);
+    -webkit-backdrop-filter: blur(0px) saturate(150%);
     
     /* 添加一个非常细微的亮色边框，模拟玻璃的边缘反光 */
     border: 1px solid rgba(255, 255, 255, 0.125);
