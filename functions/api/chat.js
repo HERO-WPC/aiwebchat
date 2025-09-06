@@ -198,7 +198,7 @@ case 'chatgpt':
                 }
 
                 apiRequest = {
-                    url: 'https://api.deepseek.com/chat/completions',
+                    url: 'https://openrouter.ai/api/v1',
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepseekApiKey}` },
                     body: JSON.stringify({ model: "deepseek-vl-chat", messages: dsMessages })
