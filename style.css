@@ -1,10 +1,10 @@
 /* --- 自定义背景图 --- */
 /* --- 在下面的 url() 中替换为您想要的图片链接 --- */
 body {
-    background-image: url('https://images.unsplash.com/photo-1507525428034-b723a9ce6890?q=80&w=2070&auto=format&fit=crop');
+    background-image: url('https://images.unsplash.com/photo-1519681393784-d120267933ba?q=80&w=2070&auto=format&fit=crop');
     background-size: cover;
     background-position: center;
-    background-attachment: fixed; /* 让背景图在滚动时固定 */
+    background-attachment: fixed;
     font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     margin: 0;
     display: flex;
@@ -21,24 +21,24 @@ body {
     max-height: 900px;
     
     /* 核心样式 */
-    background-color: rgba(0, 0, 0, 0.45); /* 半透明黑色背景 */
-    backdrop-filter: blur(20px) saturate(180%); /* 磨砂效果 */
-    -webkit-backdrop-filter: blur(20px) saturate(180%); /* 兼容 Safari */
-    border: 1px solid rgba(255, 255, 255, 0.1); /* 细微的亮色边框 */
+    background-color: rgba(20, 20, 25, 0.6); /* 更深的半透明背景 */
+    backdrop-filter: blur(25px) saturate(150%);
+    -webkit-backdrop-filter: blur(25px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.125); /* 稍微明显的边框 */
 
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    border-radius: 20px; /* 更圆润的边角 */
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    color: #f0f0f0; /* 默认文字改为浅色 */
+    color: #e0e0e0; /* 默认文字颜色 */
 }
 
 /* --- 聊天头部 --- */
 .chat-header {
-    padding: 16px 24px;
-    background-color: rgba(0, 0, 0, 0.2); /* 更深一点的透明背景 */
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 18px 24px;
+    background-color: rgba(0, 0, 0, 0.25);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.125);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -50,29 +50,30 @@ body {
     font-weight: 700;
     margin: 0;
     color: #ffffff;
+    text-shadow: 0 0 5px rgba(255,255,255,0.3);
 }
 
 .model-selector label {
     font-size: 14px;
-    color: #c0c0c0;
+    color: #b0b0b0;
 }
 
 .model-selector select {
     padding: 6px 10px;
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.3);
     color: #ffffff;
     font-size: 14px;
     cursor: pointer;
 }
 .model-selector select option {
-    background: #333; /* 下拉选项的背景色 */
+    background: #2a2a30;
 }
 .model-selector select:focus {
     outline: none;
-    border-color: rgba(83, 135, 232, 0.8);
-    box-shadow: 0 0 0 2px rgba(83, 135, 232, 0.3);
+    border-color: rgba(118, 106, 238, 0.8);
+    box-shadow: 0 0 0 2px rgba(118, 106, 238, 0.3);
 }
 
 /* --- 聊天窗口 --- */
@@ -90,7 +91,7 @@ body {
 }
 
 .chat-window::-webkit-scrollbar-thumb {
-    background-color: rgba(255, 255, 255, 0.3);
+    background-color: rgba(255, 255, 255, 0.2);
     border-radius: 3px;
 }
 
@@ -115,21 +116,19 @@ body {
 }
 
 .message.user .message-content {
-    background-color: rgba(83, 135, 232, 0.7); /* 半透明蓝色 */
+    background: linear-gradient(135deg, rgba(118, 106, 238, 0.7), rgba(102, 78, 240, 0.8));
     color: #ffffff;
     border-bottom-right-radius: 4px;
 }
 
 .message.assistant .message-content {
-    background-color: rgba(50, 50, 50, 0.7); /* 半透明深灰色 */
-    color: #f0f0f0;
+    background-color: rgba(44, 48, 53, 0.8);
+    color: #e0e0e0;
     border-bottom-left-radius: 4px;
 }
 
 .message.loading .message-content {
-    background-color: rgba(50, 50, 50, 0.7);
-    color: #f0f0f0;
-    border-bottom-left-radius: 4px;
+    background-color: rgba(44, 48, 53, 0.8);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -154,8 +153,8 @@ body {
 /* --- 聊天输入区域 --- */
 .chat-input-area {
     padding: 16px 24px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    background-color: rgba(0, 0, 0, 0.2);
+    border-top: 1px solid rgba(255, 255, 255, 0.125);
+    background-color: rgba(0, 0, 0, 0.25);
     flex-shrink: 0;
 }
 
@@ -168,7 +167,7 @@ body {
     flex-grow: 1;
     padding: 12px 16px;
     border: 1px solid rgba(255, 255, 255, 0.2);
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(0, 0, 0, 0.3);
     border-radius: 24px;
     font-size: 15px;
     color: #ffffff;
@@ -178,14 +177,14 @@ body {
 }
 .chat-form input:focus {
     outline: none;
-    border-color: rgba(83, 135, 232, 0.8);
-    box-shadow: 0 0 0 2px rgba(83, 135, 232, 0.3);
+    border-color: rgba(118, 106, 238, 0.8);
+    box-shadow: 0 0 0 2px rgba(118, 106, 238, 0.3);
 }
 
 .chat-form button {
     padding: 12px 24px;
     border: none;
-    background-color: #5387e8;
+    background-color: #766aee;
     color: white;
     border-radius: 24px;
     font-size: 15px;
@@ -195,7 +194,7 @@ body {
 }
 
 .chat-form button:hover {
-    background-color: #4a77cc;
+    background-color: #6659d6;
 }
 
 .chat-form button:disabled {
