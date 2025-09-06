@@ -1,18 +1,39 @@
 <!DOCTYPE html>
+<!-- lang="zh-CN" 有助于浏览器和搜索引擎了解网页的主要语言是简体中文 -->
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <!-- 
+      viewport meta 标签是响应式设计的关键。
+      width=device-width 告诉浏览器页面的宽度应等于设备的屏幕宽度。
+      initial-scale=1.0 设置了页面加载时的初始缩放级别为100%。
+      这确保了网页在手机上能以正常的、未经缩放的尺寸显示。
+    -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Web Chat</title>
+
+    <!-- 引入我们自己的 CSS 样式文件 -->
     <link rel="stylesheet" href="style.css">
+    
+    <!-- 引入一个外部的 Google 字体服务，用于加载“思源黑体”，提升中文字体显示效果 -->
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap">
-    <!-- 添加一个图标库用于“回形针”图标 -->
+    
+    <!-- 
+      引入 Font Awesome 图标库。
+      这是一个流行的图标字体库，让我们能通过简单的 <i> 标签来使用各种图标，
+      如此处我们用它来显示“回形针”图标。
+    -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
 <body>
+
+    <!-- 整个聊天应用的主容器 -->
     <div class="chat-container">
+        
+        <!-- 顶部的头部区域 -->
         <header class="chat-header">
             <h1>AI Web Chat</h1>
+            <!-- 模型选择器 -->
             <div class="model-selector">
                 <label for="model-select">选择模型:</label>
                 <select id="model-select">
@@ -23,22 +44,56 @@
                 </select>
             </div>
         </header>
+        
+        <!-- 中间的消息显示区域 -->
         <main id="chat-window" class="chat-window"></main>
+        
+        <!-- 底部的输入区域 -->
         <footer class="chat-input-area">
-            <!-- 图片预览区域 -->
+            
+            <!-- 
+              图片预览区域。
+              当用户选择一张图片后，这张图片的缩略图会在这里显示。
+            -->
             <div id="image-preview-container" class="image-preview-container"></div>
+            
+            <!-- 聊天输入表单 -->
             <form id="chat-form" class="chat-form">
-                <!-- 隐藏的文件输入框 -->
+                
+                <!-- 
+                  这是一个隐藏的文件输入框。
+                  我们不直接显示它，因为它样式丑陋且不可自定义。
+                  我们会通过点击“上传按钮”来用 JavaScript 触发它的点击事件。
+                  accept="image/*" 限制了用户只能选择图片文件。
+                -->
                 <input type="file" id="file-input" accept="image/*" style="display: none;">
-                <!-- 图片上传按钮 -->
+                
+                <!-- 
+                  图片上传按钮。
+                  它是一个 type="button" 的按钮，点击它不会提交表单，
+                  而是会通过 JavaScript 触发上面隐藏的 file-input。
+                -->
                 <button type="button" id="upload-button" class="upload-button">
-                    <i class="fa-solid fa-paperclip"></i>
+                    <i class="fa-solid fa-paperclip"></i> <!-- 这是回形针图标 -->
                 </button>
+                
+                <!-- 文本输入框 -->
                 <input type="text" id="message-input" placeholder="输入消息..." autocomplete="off">
+                
+                <!-- 
+                  发送按钮。
+                  它是 type="submit" 类型，点击它或在输入框中按回车键都会触发表单的 submit 事件。
+                -->
                 <button type="submit">发送</button>
             </form>
         </footer>
     </div>
+    
+    <!-- 
+      在 body 结束前引入我们的 JavaScript 文件。
+      这是一种最佳实践，可以确保在脚本执行时，页面上所有的 DOM 元素都已经被浏览器加载和解析完毕，
+      从而避免脚本找不到元素而出错。
+    -->
     <script src="script.js"></script>
 </body>
 </html>
