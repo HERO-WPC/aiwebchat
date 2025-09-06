@@ -20,7 +20,7 @@ export async function onRequestPost(context) {
 
         /**
          * 辅助函数：用于从 Base64 数据 URL 中解析出 MIME 类型和纯 Base64 数据。
-         * 例如，从 "data:image/png;base64,iVBORw0KGgo..." 中提取出 "image/png" 和 "iVBORw0KGgo..."
+         * 例如，从 "data:image/png;base64,iVBw0KGgo..." 中提取出 "image/png" 和 "iVBw0KGgo..."
          * @param {string} base64String - 完整的数据 URL。
          * @returns {{mimeType: string|null, data: string|null}}
          */
@@ -31,6 +31,7 @@ export async function onRequestPost(context) {
         };
 
         let apiRequest; // 这个变量将用于存储最终构建好的、要发送给目标 API 的请求对象。
+        let isStream = false; // 新增变量来判断是否是流式请求，默认非流式
 
         // 如果前端发送了图片，就解析它；否则，mimeType 和 imageData 都为 null。
         const { mimeType, data: imageData } = image ? parseBase64(image) : { mimeType: null, data: null };
@@ -62,18 +63,22 @@ export async function onRequestPost(context) {
                 }
 
                 apiRequest = {
-                    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+                    url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, // 建议使用更强的模型，如 gemini-2.1-pro
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ contents: geminiContents })
                 };
+                // Gemini API 默认是非流式，如果需要流式需要将 url 改为 :streamGenerateContent
+                // isStream = true; // 如果 Gemini API 支持流式且你想启用，这里可以设置为 true
                 break;
 
             case 'chatgpt':
+                isStream = true; // ChatGPT (OpenAI 兼容) 默认启用流式传输
+
                 const openaiApiKey = env.OPENAI_API_KEY; // 依然使用 ChatAnywhere 的 API Key
                 if (!openaiApiKey) throw new Error("OPENAI_API_KEY 环境变量未设置");
 
-                let finalMessagesChatgpt = []; // 使用 let 并重命名以避免冲突
+                let finalMessagesChatgpt = [];
 
                 // 添加系统消息（可选，用于设定AI的行为）
                 finalMessagesChatgpt.push({ role: 'system', content: '你是一个乐于助人的AI助手。' });
@@ -82,7 +87,6 @@ export async function onRequestPost(context) {
                 if (messages && messages.length > 0) {
                     messages.forEach((msg, index) => {
                         // 假设除了最后一条，其余消息都是纯文本
-                        // 如果您的历史消息也可能包含图片，则需要更复杂的判断
                         if (index < messages.length - 1) { // 除了最后一条消息
                             finalMessagesChatgpt.push({
                                 role: msg.role,
@@ -93,7 +97,7 @@ export async function onRequestPost(context) {
                 }
 
                 // 处理当前的用户输入，包括可能的图片
-                const currentUserMessageChatgpt = messages[messages.length - 1]; // 使用 let 并重命名以避免冲突
+                const currentUserMessageChatgpt = messages[messages.length - 1];
                 if (currentUserMessageChatgpt) {
                     if (imageData && image) {
                         // 多模态消息
@@ -113,40 +117,36 @@ export async function onRequestPost(context) {
                     }
                 }
 
-                const chatanywhereApiHostChatgpt = 'https://api.chatanywhere.tech'; // 国内使用 // 使用 let 并重命名以避免冲突
+                const chatanywhereApiHostChatgpt = 'https://api.chatanywhere.tech'; // 国内使用
                 // const chatanywhereApiHostChatgpt = 'https://api.chatanywhere.org'; // 国外使用
 
                 apiRequest = {
-                    url: `${chatanywhereApiHostChatgpt}/v1/chat/completions`, // 注意：改变了 API 端点
+                    url: `${chatanywhereApiHostChatgpt}/v1/chat/completions`,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${openaiApiKey}`
                     },
                     body: JSON.stringify({
-                        model: "gpt-4o", // 推荐使用 Chat Completions API 中的更强大模型，例如 gpt-4o 或 gpt-4-turbo
-                        // ChatAnywhere 文档中提到了 'gpt-4o-ca' 和 'gpt-4-turbo-ca'
-                        // 您可以尝试 'gpt-4o' 或 ChatAnywhere 提供的 CA 系列模型
-                        messages: finalMessagesChatgpt, // 使用 messages 数组
-                        stream: true // 如果您希望流式传输响应，可以设置此项
+                        model: "gpt-4o", // gpt-4o 或 ChatAnywhere 提供的 CA 系列模型
+                        messages: finalMessagesChatgpt,
+                        stream: true // 明确设置 stream 为 true
                     })
                 };
                 break;
 
 
             case 'deepseek':
-                const deepseekApiKey = env.OPENROUTER_API_KEY; // 将环境变量改为 OPENROUTER_API_KEY
-                if (!deepseekApiKey) throw new Error("OPENROUTER_API_KEY 环境变量未设置"); // 抛出错误时也更新环境变量名
+                isStream = true; // Deepseek (OpenRouter) 默认启用流式传输
+
+                const openrouterApiKey = env.OPENROUTER_API_KEY;
+                if (!openrouterApiKey) throw new Error("OPENROUTER_API_KEY 环境变量未设置");
 
                 let finalMessagesDeepseek = [];
-
-                // 添加系统消息（OpenRouter/OpenAI 兼容接口支持系统消息）
                 finalMessagesDeepseek.push({ role: 'system', content: '你是一个乐于助人的AI助手。' });
 
-                // 添加历史对话
                 if (messages && messages.length > 0) {
                     messages.forEach((msg) => {
-                        // OpenRouter 对消息体格式与 OpenAI 兼容，content 可以直接是字符串
                         finalMessagesDeepseek.push({
                             role: msg.role,
                             content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
@@ -154,69 +154,53 @@ export async function onRequestPost(context) {
                     });
                 }
 
-                // 处理当前的用户输入，包括可能的图片
-                // OpenRouter 上的 deepseek-chat-v3.1 模型目前不直接支持多模态（图片输入）
-
-                // 因此，以下代码会假设只有文本消息。
                 const currentUserMessageDeepseek = messages[messages.length - 1];
                 if (currentUserMessageDeepseek) {
-                    // 仅支持纯文本消息，忽略 imageData
+                    // OpenRouter 上的 deepseek-chat-v3.1 模型目前不直接支持多模态（图片输入）
                     finalMessagesDeepseek.push({
                         role: 'user',
                         content: typeof currentUserMessageDeepseek.content === 'string' ? currentUserMessageDeepseek.content : JSON.stringify(currentUserMessageDeepseek.content)
                     });
                 }
 
-
-                const openRouterApiHost = 'https://openrouter.ai'; // OpenRouter 的 API Host
+                const openRouterApiHost = 'https://openrouter.ai';
 
                 apiRequest = {
-                    url: `${openRouterApiHost}/api/v1/chat/completions`, // OpenRouter 的 API 端点
+                    url: `${openRouterApiHost}/api/v1/chat/completions`,
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${deepseekApiKey}`,
-                        "HTTP-Referer": env.YOUR_SITE_URL || "https://example.com", // 从环境变量获取 YOUR_SITE_URL，或者提供一个默认值
-                        "X-Title": env.YOUR_SITE_NAME || "My AI Chat App" // 从环境变量获取 YOUR_SITE_NAME，或者提供一个默认值
+                        'Authorization': `Bearer ${openrouterApiKey}`,
+                        "HTTP-Referer": env.YOUR_SITE_URL || "https://example.com",
+                        "X-Title": env.YOUR_SITE_NAME || "My AI Chat App"
                     },
                     body: JSON.stringify({
-                        "model": "deepseek/deepseek-chat-v3.1:free", // 使用 OpenRouter 提供的 Deepseek 模型名称
+                        "model": "deepseek/deepseek-chat-v3.1:free",
                         "messages": finalMessagesDeepseek,
-                        "stream": true // 如果您希望流式传输响应
+                        "stream": true // 明确设置 stream 为 true
                     })
                 };
                 break;
 
 
             case 'qwen':
+                // Qwen API 默认是非流式，如果需要流式，查阅其文档并调整
+                // isStream = true; // 如果 Qwen API 支持流式且你想启用，这里可以设置为 true
+
                 const qwenApiKey = env.QWEN_API_KEY;
                 if (!qwenApiKey) throw new Error("QWEN_API_KEY 环境变量未设置");
 
                 // 通义千问的多模态格式也要求一个内容数组，但字段名不同。
                 const qwenMessages = messages.map(msg => {
-                    // 我们需要准确地找到那条附加了图片的用户消息，并修改其结构。
-                    // 修正逻辑：如果当前图片存在，并且当前消息是用户消息，且其内容与最后一条用户消息相同。
                     if (imageData && msg.role === 'user' && msg.content === lastUserMessage) {
                         return {
                             role: msg.role,
                             content: [
-                                { image: image }, // 千问的字段是 'image'，这里直接使用原生的 `image` 对象，其中应该包含了 base64 字符串
+                                { image: `data:${mimeType};base64,${imageData}` }, // 千问通常接受 Base64 数据 URL 或远程 URL
                                 { text: msg.content }
                             ]
                         };
                     }
-                    // 如果前端原始的 `image` 字段本身就是 base64 字符串，那么 `image` 对象可能需要调整。
-                    // 假设 `image` 是前端传来的包含 base64 `url` 的对象
-                    if (imageData && msg.role === 'user' ) {
-                         return {
-                            role: msg.role,
-                            content: [
-                                { image: `data:${mimeType};base64,${imageData}` }, // 千问的字段如果是直接的base64字符串，则这样传递
-                                { text: msg.content }
-                            ]
-                        };
-                    }
-
                     return msg; // 其他消息保持原样
                 });
 
@@ -241,47 +225,46 @@ export async function onRequestPost(context) {
         // 如果 API 返回了非 2xx 的状态码，说明请求失败。
         if (!apiResponse.ok) {
             const errorText = await apiResponse.text(); // 读取错误响应体
+            console.error(`来自 ${model} 的 API 错误响应:`, errorText); // 打印详细错误响应
             throw new Error(`来自 ${model} 的 API 错误: ${errorText}`);
         }
 
-        // 如果是流式传输，直接返回响应流
-        if (apiRequest.body && JSON.parse(apiRequest.body).stream) {
-            // 对于流式响应，我们直接返回原始的 Response 对象，Cloudflare Workers 会处理流转发
-            const { readable, writable } = new TransformStream();
-            apiResponse.body.pipeTo(writable);
-            return new Response(readable, {
+        // 根据 isStream 变量来决定如何处理响应
+        if (isStream) {
+            // 如果是流式请求，直接返回原始的 Response 对象，Cloudflare Workers 会处理流转发
+            // 通常，流式响应的 Content-Type 应该是 text/event-stream
+            return new Response(apiResponse.body, {
                 status: apiResponse.status,
                 headers: {
-                    'Content-Type': 'text/event-stream',
+                    'Content-Type': apiResponse.headers.get('Content-Type') || 'text/event-stream', // 确保传输 Content-Type
                     'Cache-Control': 'no-cache',
                     'Connection': 'keep-alive',
                 }
             });
+        } else {
+            // 如果是非流式请求，解析 JSON 响应
+            const data = await apiResponse.json();
+
+            // --- 响应解析层 ---
+            // 从不同模型的成功响应体中，解析出我们需要的回复文本。
+            let reply = '';
+            switch (model) {
+                case 'gemini':
+                    reply = data.candidates[0].content.parts[0].text;
+                    break;
+                // 注意：由于 chatgpt 和 deepseek 现在都是流式，这部分的 case 将不再被触发。
+                // 如果将来某个模型被设置为非流式，它会在这里处理。
+                case 'qwen':
+                    reply = data.output.choices[0].message.content[0].text;
+                    break;
+            }
+
+            // 将最终提取出的纯文本回复包装成 JSON 格式，发送回前端。
+            return new Response(JSON.stringify({ reply }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' },
+            });
         }
-
-        const data = await apiResponse.json(); // 解析成功的 JSON 响应
-
-        // --- 响应解析层 ---
-        // 从不同模型的成功响应体中，解析出我们需要的回复文本。
-        let reply = '';
-        switch (model) {
-            case 'gemini':
-                reply = data.candidates[0].content.parts[0].text;
-                break;
-            case 'chatgpt':
-            case 'deepseek':
-                reply = data.choices[0].message.content;
-                break;
-            case 'qwen':
-                reply = data.output.choices[0].message.content[0].text;
-                break;
-        }
-
-        // 将最终提取出的纯文本回复包装成 JSON 格式，发送回前端。
-        return new Response(JSON.stringify({ reply }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' },
-        });
 
     } catch (error) {
         // 如果在整个 `try` 块的任何地方发生错误，都会被这里捕获。
