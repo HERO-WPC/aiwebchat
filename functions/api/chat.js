@@ -181,29 +181,114 @@ case 'chatgpt':
 
 
 
-            case 'deepseek':
-                const deepseekApiKey = env.DEEPSEEK_API_KEY;
-                if (!deepseekApiKey) throw new Error("DEEPSEEK_API_KEY 环境变量未设置");
-                
-                const dsMessages = [...messages];
-                // DeepSeek-VL 的多模态格式与 GPT-4o 非常相似。
-                if (imageData) {
-                     const lastUserMsg = dsMessages.filter(m => m.role === 'user').pop();
-                     if(lastUserMsg) {
-                        lastUserMsg.content = [
-                            { type: "text", text: lastUserMsg.content },
-                            { type: "image_url", image_url: { url: image } }
-                        ];
-                     }
-                }
+case 'deepseek':
+    const deepseekApiKey = env.DEEPSEEK_API_KEY; // 依然使用 ChatAnywhere 的 API Key
+    if (!deepseekApiKey) throw new Error("OPENAI_API_KEY 环境变量未设置");
 
-                apiRequest = {
-                    url: 'https://openrouter.ai/api/v1',
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${deepseekApiKey}` },
-                    body: JSON.stringify({ model: "deepseek-vl-chat", messages: dsMessages })
-                };
-                break;
+    const messagesToSend = []; // 用于构建 Chat Completions API 的 messages 数组
+
+    // 添加系统消息（可选，用于设定AI的行为）
+    messagesToSend.push({ role: 'system', content: '你是一个乐于助人的AI助手。' });
+
+    // 将原始的 messages 数组（假设它包含历史对话）转换为 Chat Completions API 兼容的格式
+    // 这里需要根据您原始 messages 数组的实际结构进行调整
+    // 假设原始 messages 数组已经是 { role, content } 的格式
+    if (messages && messages.length > 0) {
+        messages.forEach(msg => {
+            // 简单复制，如果原始消息的 content 是对象（图片），这里需要额外处理
+            messagesToSend.push({
+                role: msg.role,
+                content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content) // 确保 content 为字符串，避免复杂的对象直接作为 content
+            });
+        });
+    }
+
+    // 处理图片逻辑（如果需要支持多模态，这部分会更复杂）
+    if (imageData && image) {
+        // 对于Chat Completions API的多模态，content 可以是数组
+        // 假设 imageData 包含 base64 编码的图片数据
+        messagesToSend.push({
+            role: 'user',
+            content: [
+                { type: 'text', text: messages[messages.length - 1].content }, // 假设最后一条用户消息是文本输入
+                { type: 'image_url', image_url: { url: `data:${image.mimetype};base64,${imageData}` } }
+            ]
+        });
+    } else {
+        // 如果没有图片，确保最后一条用户消息是单一的文本内容
+        const lastUserMsg = messages[messages.length - 1]; // 假设最后一条消息是用户消息
+        if (lastUserMsg && typeof lastUserMsg.content === 'string') {
+            // 如果最后一个消息的 content 已经是字符串，直接加入
+            // 如果您之前已经将所有消息添加到 messagesToSend，这里可能需要避免重复添加
+            // 或者，您可以在构建 messagesToSend 数组时，直接处理文本和图片
+        }
+    }
+
+    // 重构 logic：我们确保 messagesToSend 数组中包含了所有需要发送的消息
+    // 优先处理多模态，如果存在，则最后一条用户消息会是多模态格式。
+    // 如果没有图片，则最后一条用户消息是纯文本。
+
+    // 为了简洁和避免重复，我们以下面的方式重构 messagesToSend 的构建逻辑
+    const finalMessages = [];
+
+    // 添加系统消息
+    finalMessages.push({ role: 'system', content: '你是一个乐于助人的AI助手。' });
+
+    // 添加历史对话（如果存在）
+    if (messages && messages.length > 0) {
+        messages.forEach((msg, index) => {
+            // 假设除了最后一条，其余消息都是纯文本
+            // 如果您的历史消息也可能包含图片，则需要更复杂的判断
+            if (index < messages.length - 1) { // 除了最后一条消息
+                finalMessages.push({
+                    role: msg.role,
+                    content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
+                });
+            }
+        });
+    }
+
+    // 处理当前的用户输入，包括可能的图片
+    const currentUserMessage = messages[messages.length - 1];
+    if (currentUserMessage) {
+        if (imageData && image) {
+            // 多模态消息
+            finalMessages.push({
+                role: 'user',
+                content: [
+                    { type: 'text', text: typeof currentUserMessage.content === 'string' ? currentUserMessage.content : '' }, // 文本部分
+                    { type: 'image_url', image_url: { url: `data:${image.mimetype};base64,${imageData}` } }
+                ]
+            });
+        } else {
+            // 纯文本消息
+            finalMessages.push({
+                role: 'user',
+                content: typeof currentUserMessage.content === 'string' ? currentUserMessage.content : JSON.stringify(currentUserMessage.content)
+            });
+        }
+    }
+
+
+    const chatanywhereApiHost = 'https://api.chatanywhere.tech'; // 国内使用
+    // const chatanywhereApiHost = 'https://api.chatanywhere.org'; // 国外使用
+
+    apiRequest = {
+        url: `${chatanywhereApiHost}/v1/chat/completions`, // 注意：改变了 API 端点
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${openaiApiKey}`
+        },
+        body: JSON.stringify({
+            model: "gpt-4o", // 推荐使用 Chat Completions API 中的更强大模型，例如 gpt-4o 或 gpt-4-turbo
+                           // ChatAnywhere 文档中提到了 'gpt-4o-ca' 和 'gpt-4-turbo-ca'
+                           // 您可以尝试 'gpt-4o' 或 ChatAnywhere 提供的 CA 系列模型
+            messages: finalMessages, // 使用 messages 数组
+            stream: true // 如果您希望流式传输响应，可以设置此项
+        })
+    };
+    break;
 
             case 'qwen':
                 const qwenApiKey = env.QWEN_API_KEY;
