@@ -140,23 +140,6 @@ export async function onRequestPost(context) {
 
                 let finalMessagesDeepseek = []; // 使用 let 并重命名以避免冲突
 
-                // 添加系统消息（可选，用于设定AI的行为）
-                finalMessagesDeepseek.push({ role: 'system', content: '你是一个乐于助人的AI助手。' });
-
-                // 添加历史对话（如果存在）
-                if (messages && messages.length > 0) {
-                    messages.forEach((msg, index) => {
-                        // 假设除了最后一条，其余消息都是纯文本
-                        // 如果您的历史消息也可能包含图片，则需要更复杂的判断
-                        if (index < messages.length - 1) { // 除了最后一条消息
-                            finalMessagesDeepseek.push({
-                                role: msg.role,
-                                content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content)
-                            });
-                        }
-                    });
-                }
-
                 // 处理当前的用户输入，包括可能的图片
                 const currentUserMessageDeepseek = messages[messages.length - 1]; // 使用 let 并重命名以避免冲突
                 if (currentUserMessageDeepseek) {
@@ -179,7 +162,7 @@ export async function onRequestPost(context) {
                 }
 
                 const chatanywhereApiHostDeepseek = 'https://openrouter.ai/api'; // 国内使用 // 使用 let 并重命名以避免冲突
-                // const chatanywhereApiHostDeepseek = 'https://api.chatanywhere.org'; // 国外使用
+                
 
                 apiRequest = {
                     url: `${chatanywhereApiHostDeepseek}/v1`, // 注意：改变了 API 端点
