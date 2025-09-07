@@ -18,6 +18,59 @@ let conversationHistory = []; // 存储整个对话历史记录，用于发送�
 let attachedImageBase64 = null; // 用于存储当前选中的、已编码为 Base64 的图片数据。发送后会清空。
 
 /**
+ * 向聊天窗口添加一条消息。这是一个非常核心的 UI 更新函数。
+ * 它可以灵活处理只包含文本、只包含图片或图文混合的消息。
+ * @param {string} sender - 消息的发送者，'user' 或 'assistant'。这个参数决定了消息气泡的样式和位置。
+ * @param {string} [text] - (可选) 消息的文本内容。
+ * @param {string|null} [imageBase64] - (可选) 要在消息中显示的图片的 Base64 数据 URL。
+ * @returns {HTMLElement} 返回创建的消息内容元素，用于后续可能的更新（例如流式输出）
+ */
+function addMessage(sender, text, imageBase64 = null) {
+    // 1. 创建消息的最外层容器 <div>
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message', sender); // 添加 'message' 和发送者 ('user'/'assistant') 类名
+
+    // 2. 创建消息内容的容器 <div>
+    const contentElement = document.createElement('div');
+    contentElement.classList.add('message-content');
+
+    // 3. 如果存在图片数据，则创建并添加图片元素
+    if (imageBase64) {
+        const imageElement = document.createElement('img');
+        imageElement.src = imageBase64; // Base64 数据可以直接作为图片的 src
+        imageElement.alt = '用户上传的图片';
+        contentElement.appendChild(imageElement); // 将图片添加到内容容器中
+    }
+
+    // 4. 如果存在文本内容，则创建并添加文本节点
+    // 使用 createTextNode 而不是 innerHTML 是为了防止 XSS (跨站脚本) 攻击，确保文本内容被当作纯文本处理。
+    if (text) {
+        const textNode = document.createTextNode(text);
+        contentElement.appendChild(textNode); // 将文本添加到内容容器中
+    }
+    
+    // 5. 组装并显示消息
+    messageElement.appendChild(contentElement); // 将内容容器添加到消息外层容器
+    chatWindow.appendChild(messageElement); // 将完整的消息元素添加到聊天窗口
+    
+    // 6. 自动滚动到聊天窗口的底部，确保最新的消息总是可见的，并带有平滑效果
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    
+    // 7. 返回内容容器的引用，以便流式更新
+    return contentElement;
+}
+
+
+/**
+ * 清除图片预览区域的内容，并重置相关的状态变量。
+ */
+function clearImagePreview() {
+    imagePreviewContainer.innerHTML = ''; // 清空预览区的 HTML
+    attachedImageBase64 = null; // 重置 Base64 数据状态
+    fileInput.value = ''; // 重置文件输入框的值。这很重要，否则用户无法连续选择同一张图片。
+}
+
+/**
  * 禁用聊天界面的输入控件（发送按钮、模型选择器、上传按钮）。
  * 防止用户在消息发送过程中进行重复操作。
  */
