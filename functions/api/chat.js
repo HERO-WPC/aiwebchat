@@ -92,22 +92,6 @@ function transformGeminiStreamToSSE() {
 // 这是核心逻辑，根据模型选择不同的后端 API
 // =========================================================================
 async function handleChatRequest(request, env) {
-    // --- 环境变量验证 ---
-    if (!env.GEMINI_API_KEY) {
-        console.error('Missing GEMINI_API_KEY environment variable.');
-        return new Response(JSON.stringify({ error: 'Server configuration error: GEMINI_API_KEY is not set.' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-    }
-    if (!env.OLLAMA_API_BASE_URL) {
-        console.error('Missing OLLAMA_API_BASE_URL environment variable.');
-        return new Response(JSON.stringify({ error: 'Server configuration error: OLLAMA_API_BASE_URL is not set.' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-    }
-
     // 确保请求体为 JSON
     const contentType = request.headers.get('Content-Type');
     if (!contentType || !contentType.includes('application/json')) {
@@ -303,6 +287,9 @@ function buildApiConfig(model, messages, stream, env) {
     let apiConfig = {};
 
     if (model.startsWith('gemini')) {
+        if (!env.GEMINI_API_KEY) {
+            throw new Error('Server configuration error: GEMINI_API_KEY is not set for Gemini model.');
+        }
         const geminiMessages = messages.map(msg => {
             if (msg.parts) {
                 return {
@@ -329,6 +316,9 @@ function buildApiConfig(model, messages, stream, env) {
             apiConfig.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
         }
     } else if (model.startsWith('deepseek') || model.startsWith('gpt-') || model.startsWith('qwen') || model.startsWith('ollama-')) {
+        if (!env.OLLAMA_API_BASE_URL) {
+            throw new Error('Server configuration error: OLLAMA_API_BASE_URL is not set for Ollama-compatible models.');
+        }
         apiConfig = {
             provider: PROVIDERS.OLLAMA,
             endpoint: `${env.OLLAMA_API_BASE_URL}/v1/chat/completions`,
