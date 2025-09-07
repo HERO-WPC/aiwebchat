@@ -180,6 +180,11 @@ async function handleChatRequest(request, env) {
             delete fetchOptions.headers['Authorization'];
         }
 
+        console.log('--- Debugging External API Request ---');
+        console.log('Final Endpoint:', finalEndpoint);
+        console.log('Request Body:', JSON.stringify(apiConfig.body, null, 2));
+        console.log('--------------------------------------');
+
         const backendResponse = await fetch(finalEndpoint, fetchOptions);
 
         // --- 流式响应处理 ---
@@ -221,11 +226,12 @@ async function handleChatRequest(request, env) {
         }
 
         if (!backendResponse.ok) {
-            console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Response: ${JSON.stringify(data)}`);
+            const rawBackendErrorText = await backendResponse.text(); // 获取原始错误文本
+            console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Raw Response: ${rawBackendErrorText}`);
             return new Response(JSON.stringify({
-                error: `Backend API error for model ${model} (${apiConfig.provider}): ${data.message || data.error?.message || JSON.stringify(data)}`,
+                error: `Backend API error for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}. Details: ${rawBackendErrorText.substring(0, 500)}`,
                 statusCode: backendResponse.status,
-                originalResponse: data
+                originalResponse: rawBackendErrorText // 包含原始错误响应
             }), {
                 status: backendResponse.status,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
