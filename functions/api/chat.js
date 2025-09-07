@@ -1,3 +1,4 @@
+// /root/桌面/aiwebchat/functions/api/chat.js
 // worker.js
 
 // 定义支持的大模型供应商，以便更好地组织和扩展
@@ -7,24 +8,21 @@ const PROVIDERS = {
 };
 
 // =========================================================================
-// 主请求处理函数
+// 主请求处理函数 (使用 ES Module export default)
 // =========================================================================
-addEventListener('fetch', event => {
-    event.respondWith(handleRequest(event.request, event.env));
-});
+export default {
+    async fetch(request, env, ctx) { // 添加 ctx 参数，这是 Pages Functions 的标准签名
+        const url = new URL(request.url);
 
-async function handleRequest(request, env) {
-    const url = new URL(request.url);
+        // 仅处理 POST 请求到 /api/chat 路径
+        if (request.method === 'POST' && url.pathname === '/api/chat') {
+            return handleChatRequest(request, env);
+        }
 
-    // 仅处理 POST 请求到 /api/chat 路径
-    if (request.method === 'POST' && url.pathname === '/api/chat') {
-        return handleChatRequest(request, env);
+        // 针对其他路径或方法，返回一个默认的响应
+        return new Response('Not Found or Method Not Allowed', { status: 404 });
     }
-
-    // 针对其他路径或方法，返回一个默认的响应
-    return new Response('Not Found or Method Not Allowed', { status: 404 });
-}
-
+};
 
 // =========================================================================
 // 聊天请求处理函数
