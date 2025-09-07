@@ -47,6 +47,7 @@ function updateAssistantMessageWithError(element, message) {
 
 // 监听表单的 'submit' 事件。这是应用的核心交互逻辑。
 chatForm.addEventListener('submit', async (e) => {
+    console.log('Chat form submit event triggered.'); // 新增调试日志
     e.preventDefault(); // 阻止表单的默认提交行为（即刷新页面）
     
     const userMessage = messageInput.value.trim(); // 获取输入框中的文本，并移除首尾空格
@@ -57,6 +58,14 @@ chatForm.addEventListener('submit', async (e) => {
     }
 
     const selectedModel = modelSelect.value; // 获取当前选择的模型
+
+    // --- 调试日志：在发送前打印关键信息 ---
+    console.log('--- Sending Message Debug Info ---');
+    console.log('User Message:', userMessage);
+    console.log('Attached Image Base64 (truncated):', attachedImageBase64 ? attachedImageBase64.substring(0, 100) + '...' : 'None');
+    console.log('Selected Model:', selectedModel);
+    console.log('Conversation History:', conversationHistory);
+    console.log('----------------------------------');
 
     // 1. 乐观更新 UI：立即在界面上显示用户的消息。
     addMessage('user', userMessage, attachedImageBase64);
