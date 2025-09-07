@@ -218,4 +218,7 @@ async function handleChatRequest(request, env) {
         console.error('Worker internal error during backend fetch:', error);
         return new Response(JSON.stringify({ error: `Worker internal error: ${error.message}` }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+    }
+}
