@@ -175,7 +175,14 @@ async function handleChatRequest(request, env) {
 
         let finalEndpoint = apiConfig.endpoint;
         if (apiConfig.provider === PROVIDERS.GEMINI) {
-            finalEndpoint = `${apiConfig.endpoint}&key=${apiConfig.apiKey}`;
+            // Gemini 的 API Key 通过 URL 参数传递
+            const urlParams = new URLSearchParams();
+            if (stream) {
+                urlParams.append('alt', 'sse');
+            }
+            urlParams.append('key', apiConfig.apiKey);
+            
+            finalEndpoint = `${apiConfig.endpoint}?${urlParams.toString()}`;
             delete fetchOptions.headers['Authorization'];
         }
 
@@ -305,16 +312,17 @@ function buildApiConfig(model, messages, stream, env) {
 
         apiConfig = {
             provider: PROVIDERS.GEMINI,
-            endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
+            endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:${stream ? 'streamGenerateContent' : 'generateContent'}`,
             apiKey: env.GEMINI_API_KEY,
             modelName: model,
             body: {
                 contents: geminiMessages,
             }
         };
-        if (stream) {
-            apiConfig.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
-        }
+        // 移除此处的 endpoint 修改逻辑，统一在 handleChatRequest 中处理
+        // if (stream) {
+        //     apiConfig.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
+        // }
     } else if (model.startsWith('deepseek') || model.startsWith('gpt-') || model.startsWith('qwen') || model.startsWith('ollama-')) {
         if (!env.OLLAMA_API_BASE_URL) {
             throw new Error('Server configuration error: OLLAMA_API_BASE_URL is not set for Ollama-compatible models.');
