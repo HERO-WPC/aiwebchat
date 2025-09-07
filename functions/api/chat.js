@@ -22,9 +22,8 @@ export default {
                 return handleChatRequest(request, env);
             }
 
-            // 如果不匹配，记录并返回 404
-            console.warn(`Request did not match: Method ${request.method} (expected POST), Pathname ${pathname} (expected /api/chat)`);
-            return new Response('Not Found or Method Not Allowed', { status: 404 });
+            // 如果不匹配，则尝试服务静态资产
+            return env.ASSETS.fetch(request);
         } catch (error) {
             console.error('Global fetch error:', error);
             return new Response(JSON.stringify({ error: `Internal server error: ${error.message}` }), {
