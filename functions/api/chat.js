@@ -90,6 +90,10 @@ function transformGeminiStreamToSSE() {
 // 这是核心逻辑，根据模型选择不同的后端 API
 // =========================================================================
 async function handleChatRequest(request, env) {
+    // --- 临时调试：立即返回 200 OK 以检查是否到达此函数 ---
+    return new Response('Debug: Reached handleChatRequest', { status: 200 });
+    // --- 临时调试结束 ---
+
     // --- 环境变量验证 ---
     if (!env.GEMINI_API_KEY) {
         console.error('Missing GEMINI_API_KEY environment variable.');
