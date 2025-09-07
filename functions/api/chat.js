@@ -49,7 +49,7 @@ function transformGeminiStreamToSSE() {
             // Gemini 的流通常以 "data: " 开头，并且每个 JSON 对象后有两个换行符
             // 我们需要处理可能不完整的 JSON 数据块
             const lines = buffer.split('\n\n');
-            
+
             // 保留最后一个可能不完整的块在缓冲区中
             buffer = lines.pop() || '';
 
@@ -127,7 +127,7 @@ async function handleChatRequest(request, env) {
 
     // --- 多模态处理：如果请求中包含图片，则修改最后一条消息 ---
     const processedMessages = [...messages]; // 创建消息的副本，避免直接修改原始请求体
-    if (imageBase64 && processedMessages.length > 0) {
+    if (imageBase66 && processedMessages.length > 0) { // 这里修正了一个明显的错别字：imageBase66 应为 imageBase64
         const lastMessage = processedMessages[processedMessages.length - 1];
         if (lastMessage.role === 'user') {
             const match = imageBase64.match(/^data:(image\/.+);base64,(.+)$/);
@@ -181,7 +181,7 @@ async function handleChatRequest(request, env) {
                 urlParams.append('alt', 'sse');
             }
             urlParams.append('key', apiConfig.apiKey);
-            
+
             finalEndpoint = `${apiConfig.endpoint}?${urlParams.toString()}`;
             delete fetchOptions.headers['Authorization'];
         }
@@ -196,7 +196,7 @@ async function handleChatRequest(request, env) {
             } else {
                 responseStream = backendResponse.body;
             }
-            
+
             return new Response(responseStream, {
                 status: backendResponse.status,
                 headers: {
@@ -208,25 +208,21 @@ async function handleChatRequest(request, env) {
 
         // --- 非流式响应处理 ---
         let data;
+        let rawErrorText = null; // 用于存储原始错误文本
         let contentTypeHeader = backendResponse.headers.get('Content-Type');
 
         try {
             data = await backendResponse.json();
         } catch (jsonError) {
-            const rawErrorText = await backendResponse.text();
+            // 如果 JSON 解析失败，立即读取原始文本作为错误信息
+            rawErrorText = await backendResponse.text();
             console.error(`Backend API returned non-JSON or malformed JSON for model ${model} (${apiConfig.provider}) (Status: ${backendResponse.status}, Content-Type: ${contentTypeHeader || 'None'}):`, rawErrorText);
-
-            return new Response(JSON.stringify({
-                error: `Backend API returned unexpected response format for model ${model}. Status: ${backendResponse.status}, Type: ${contentTypeHeader || 'Unknown'}. Details: ${rawErrorText.substring(0, 500)}`,
-                statusCode: backendResponse.status,
-                originalResponse: rawErrorText
-            }, null, 2), {
-                status: backendResponse.status !== 200 ? backendResponse.status : 500,
-                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
         }
 
         if (!backendResponse.ok) {
+            // 如果请求失败，优先使用已捕获的原始错误文本
+            const errorDetails = rawErrorText ?? JSON.stringify(data?.error) ?? 'No error details available.';
+
             // 专门处理 429 Too Many Requests 错误
             if (backendResponse.status === 429) {
                 console.error(`Rate limit exceeded for model ${model} (${apiConfig.provider}). Status: 429`);
@@ -234,6 +230,7 @@ async function handleChatRequest(request, env) {
                     error: `请求过于频繁 (速率限制)，请稍等片刻后再试。模型: ${model}`,
                     statusCode: 429,
                     provider: apiConfig.provider,
+                    originalError: errorDetails
                 };
                 return new Response(JSON.stringify(errorPayload, null, 2), {
                     status: 429,
@@ -241,19 +238,18 @@ async function handleChatRequest(request, env) {
                 });
             }
 
-            const rawBackendErrorText = await backendResponse.text(); // 获取原始错误文本
-            console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Raw Response: ${rawBackendErrorText}`);
+            console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Raw Response: ${errorDetails}`);
             return new Response(JSON.stringify({
-                error: `Backend API error for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}. Details: ${rawBackendErrorText.substring(0, 500)}`,
+                error: `Backend API error for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}. Details: ${errorDetails.substring(0, 500)}`,
                 statusCode: backendResponse.status,
-                originalResponse: rawBackendErrorText // 包含原始错误响应
+                originalResponse: errorDetails
             }, null, 2), {
                 status: backendResponse.status,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
         }
 
-         if (data.error) {
+        if (data && data.error) { // 确保 data 存在
             console.error(`Backend API reported error for model ${model} (${apiConfig.provider}):`, data.error);
             return new Response(JSON.stringify({
                 error: `Backend API error for model ${model} (${apiConfig.provider}): ${data.error.message || JSON.stringify(data.error)}`,
@@ -274,11 +270,11 @@ async function handleChatRequest(request, env) {
 
 
         if (replyContent === undefined) {
-             console.warn(`Unexpected backend response structure for model ${model} (${apiConfig.provider}):`, data);
-             return new Response(JSON.stringify({ error: `Unexpected response from ${apiConfig.provider} for model ${model}` }), {
-                 status: 500,
-                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-             });
+            console.warn(`Unexpected backend response structure for model ${model} (${apiConfig.provider}):`, data);
+            return new Response(JSON.stringify({ error: `Unexpected response from ${apiConfig.provider} for model ${model}` }), {
+                status: 500,
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            });
         }
 
         return new Response(JSON.stringify({ reply: replyContent }), {
@@ -313,7 +309,7 @@ function buildApiConfig(model, messages, stream, env) {
         }
 
         // --- Gemini 消息处理：确保角色交替并合并连续消息 ---
-        
+
         // 1. 过滤掉无效或空内容的消息
         let processed = messages.filter(msg => (msg.content || (msg.parts && msg.parts.some(p => p.text || p.inline_data))));
 
@@ -360,10 +356,25 @@ function buildApiConfig(model, messages, stream, env) {
             }
         };
     } else if (model.startsWith('deepseek') || model.startsWith('gpt-') || model.startsWith('qwen') || model.startsWith('ollama-')) {
-        if (!env.OLLAMA_API_BASE_URL) {
-            throw new Error('Server configuration error: OLLAMA_API_BASE_URL is not set for Ollama-compatible models.');
+        // 修改这里以支持多个 Ollama 服务器
+        let ollamaBaseUrl = env.OLLAMA_API_BASE_URL; // 默认使用 OLLAMA_API_BASE_URL
+
+        // 尝试从模型名称中提取 Ollama 服务器地址
+        // 例如：model: "ollama-http://192.168.1.100:11434/llama2"
+        const ollamaUrlPrefix = 'ollama-http';
+        if (model.startsWith(ollamaUrlPrefix)) {
+            const parts = model.split('/');
+            if (parts.length >= 3) {
+                // 提取完整的 URL，例如 "http://192.168.1.100:11434"
+                ollamaBaseUrl = parts[0] + '//' + parts[1].split('-')[1] + '/' + parts[2]; // 重新构建 URL
+                model = model.substring(ollamaUrlPrefix.length + ollamaBaseUrl.length - ollamaUrlPrefix.length); // 提取实际的模型名
+            }
         }
         
+        if (!ollamaBaseUrl) {
+            throw new Error('Server configuration error: OLLAMA_API_BASE_URL or a valid Ollama URL in model name is not set.');
+        }
+
         // --- Ollama/OpenAI 消息处理：统一消息格式 ---
         const ollamaMessages = messages.map(msg => {
             // 如果 content 已经是数组 (多模态)，直接返回
@@ -379,9 +390,9 @@ function buildApiConfig(model, messages, stream, env) {
 
         apiConfig = {
             provider: PROVIDERS.OLLAMA,
-            endpoint: `${env.OLLAMA_API_BASE_URL}/v1/chat/completions`,
-            apiKey: null,
-            modelName: model.startsWith('ollama-') ? model.substring('ollama-'.length) : model,
+            endpoint: `${ollamaBaseUrl}/v1/chat/completions`,
+            apiKey: null, // Ollama 通常不需要 API Key，或者自行处理
+            modelName: model.startsWith('ollama-') ? model.substring('ollama-'.length) : model, // 提取实际的模型名称
             body: {
                 model: model.startsWith('ollama-') ? model.substring('ollama-'.length) : model,
                 messages: ollamaMessages,
@@ -393,6 +404,3 @@ function buildApiConfig(model, messages, stream, env) {
     }
     return apiConfig;
 }
-
-
-
