@@ -28,7 +28,7 @@ body {
     --bg-assistant-message: rgba(44, 48, 53, 0.8);
     --bg-user-message-gradient: linear-gradient(135deg, rgba(118, 106, 238, 0.7), rgba(102, 78, 240, 0.8));
     --bg-select-option: #2a2a30;
-    --bg-error: rgba(255, 82, 82, 0.7); /* 新增：错误背景色 */
+    --bg-error: rgba(255, 82, 82, 0.7);
 
     /* 边框与阴影 */
     --border-color: rgba(255, 255, 255, 0.125);
@@ -41,7 +41,6 @@ body {
     --border-radius-input: 24px;
     --border-radius-small: 8px;
 }
-
 
 /* --- 基础与背景设置 --- */
 body {
@@ -63,15 +62,12 @@ body {
     max-width: 800px;
     height: 95vh;
     max-height: 900px;
-    
     background-color: var(--bg-glass);
     backdrop-filter: blur(10px) saturate(150%);
     -webkit-backdrop-filter: blur(10px) saturate(150%);
-    
     border: 1px solid var(--border-color);
     border-radius: var(--border-radius-main);
     box-shadow: var(--shadow-main);
-    
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -160,7 +156,7 @@ body {
     font-size: 15px;
     white-space: pre-wrap;
     word-wrap: break-word;
-    min-height: 1.6em; /* 确保空消息也有高度 */
+    min-height: 1.6em;
 }
 
 .message-content img {
@@ -188,7 +184,6 @@ body {
     border-bottom-left-radius: 4px;
 }
 
-/* 新增：等待流式响应时的加载动画 */
 .message.assistant.loading .message-content {
     animation: pulse 1.5s infinite;
 }
@@ -199,13 +194,11 @@ body {
     100% { background-color: var(--bg-assistant-message); }
 }
 
-/* 新增：错误消息的样式 */
 .message.assistant.error .message-content {
     background-color: var(--bg-error);
     color: var(--text-color-white);
-    animation: none; /* 取消加载动画 */
+    animation: none;
 }
-
 
 /* --- 底部聊天输入区域 --- */
 .chat-input-area {
@@ -239,7 +232,6 @@ body {
     box-shadow: 0 0 0 2px var(--primary-color-focus-glow);
 }
 
-/* 上传和发送按钮的通用样式 */
 .chat-form button {
     padding: 12px;
     width: 48px;
@@ -254,7 +246,6 @@ body {
     transition: background-color 0.2s;
 }
 
-/* 图片上传按钮的特定样式 */
 .chat-form button.upload-button {
     background-color: transparent;
     color: var(--text-color-dark);
@@ -265,7 +256,6 @@ body {
     color: var(--text-color-white);
 }
 
-/* 发送按钮的特定样式 */
 .chat-form button[type="submit"] {
     background-color: var(--primary-color);
     color: var(--text-color-white);
