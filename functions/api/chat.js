@@ -59,7 +59,7 @@ async function handleChatRequest(request, env) {
         });
     }
     if (!messages || !Array.isArray(messages) || messages.length === 0) {
-        return new Response(JSON.stringify({ error: 'Missing or empty "messages" array in request body' })), {
+        return new Response(JSON.stringify({ error: 'Missing or empty "messages" array in request body' }), {
             status: 400,
             headers: { 'Content-Type': 'application/json' }
         });
@@ -74,7 +74,7 @@ async function handleChatRequest(request, env) {
             provider: PROVIDERS.GEMINI,
             endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
             apiKey: env.GEMINI_API_KEY, // 使用 Gemini 自己的 API Key
-            modelName: model
+            modelName: model,
             // 构建请求体 (Gemini API 格式)
             body: {
                 contents: messages.map(msg => ({
@@ -218,7 +218,4 @@ async function handleChatRequest(request, env) {
         console.error('Worker internal error during backend fetch:', error);
         return new Response(JSON.stringify({ error: `Worker internal error: ${error.message}` }), {
             status: 500,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
-    }
-}
+            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-
