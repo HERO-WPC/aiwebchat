@@ -14,7 +14,6 @@ export default {
     async fetch(request, env, ctx) { // 添加 ctx 参数，这是 Pages Functions 的标准签名
         try {
             const url = new URL(request.url);
-            console.log('Worker received request:', request.method, url.pathname); // 新增调试日志
 
             // 仅处理 POST 请求到 /api/chat 路径
             if (request.method === 'POST' && url.pathname === '/api/chat') {
