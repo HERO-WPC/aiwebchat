@@ -160,30 +160,52 @@ async function handleChatRequest(request, env) {
         }
 
         // --- 非流式响应处理 ---
-        const contentTypeHeader = backendResponse.headers.get('Content-Type');
+        let data;
+        let contentTypeHeader = backendResponse.headers.get('Content-Type');
 
-        // 检查状态码和内容类型，确保是 JSON
-        if (!backendResponse.ok || !contentTypeHeader || !contentTypeHeader.includes('application/json')) {
-            const rawErrorText = await backendResponse.text();
-            console.error(`Backend API error (${apiConfig.provider}): Status ${backendResponse.status}, Response: ${rawErrorText}`);
+        try {
+            // 尝试将后端响应解析为 JSON
+            data = await backendResponse.json();
+        } catch (jsonError) {
+            // 如果解析 JSON 失败，说明响应很可能不是 JSON，或者是不完整的 JSON
+            const rawErrorText = await backendResponse.text(); // 获取原始文本，以便调试
+            console.error(`Backend API returned non-JSON or malformed JSON (Status: ${backendResponse.status}, Content-Type: ${contentTypeHeader || 'None'}):`, rawErrorText);
+
+            // 返回一个包含详细错误信息的 JSON 响应
             return new Response(JSON.stringify({
-                error: `Backend API error (${apiConfig.provider}): ${rawErrorText.substring(0, 500)}`,
+                error: `Backend API returned unexpected response format. Status: ${backendResponse.status}, Type: ${contentTypeHeader || 'Unknown'}. Details: ${rawErrorText.substring(0, 500)}`,
                 statusCode: backendResponse.status,
-                originalResponse: rawErrorText
+                originalResponse: rawErrorText // 返回原始响应体以便调试
             }), {
+                // 如果后端返回非 200 状态，使用后端状态码；否则默认 500
                 status: backendResponse.status !== 200 ? backendResponse.status : 500,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
         }
 
-        const data = await backendResponse.json();
+        // 现在 `data` 已经成功解析为 JSON，继续处理业务逻辑
 
-        // 检查后端业务逻辑是否返回了错误
+        // 检查后端响应的 HTTP 状态码
+        if (!backendResponse.ok) {
+            // 如果 HTTP 状态码表示错误（例如 4xx 或 5xx），且响应已成功解析为 JSON
+            console.error(`Backend API returned error status (${apiConfig.provider}): Status ${backendResponse.status}, Response: ${JSON.stringify(data)}`);
+            return new Response(JSON.stringify({
+                error: `Backend API error (${apiConfig.provider}): ${data.message || data.error?.message || JSON.stringify(data)}`,
+                statusCode: backendResponse.status,
+                originalResponse: data // 包含解析后的错误 JSON 响应
+            }), {
+                status: backendResponse.status,
+                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+            });
+        }
+
+        // 检查后端业务逻辑是否返回了错误 (例如，响应体中包含 "error" 字段)
          if (data.error) {
             console.error(`Backend API reported error (${apiConfig.provider}):`, data.error);
             return new Response(JSON.stringify({
                 error: `Backend API error (${apiConfig.provider}): ${data.error.message || JSON.stringify(data.error)}`,
-                statusCode: backendResponse.status
+                statusCode: backendResponse.status,
+                originalResponse: data // 包含解析后的错误 JSON 响应
             }), {
                 status: backendResponse.status,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -209,12 +231,14 @@ async function handleChatRequest(request, env) {
              });
         }
 
+        // 成功获取回复内容，返回给客户端
         return new Response(JSON.stringify({ reply: replyContent }), {
             status: 200,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
 
     } catch (error) {
+        // 捕获在 `fetch` 过程中可能发生的网络错误或其他未预期的 Worker 内部错误
         console.error('Worker internal error during backend fetch:', error);
         return new Response(JSON.stringify({ error: `Worker internal error: ${error.message}` }), {
             status: 500,
