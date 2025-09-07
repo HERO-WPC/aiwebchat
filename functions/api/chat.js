@@ -227,6 +227,20 @@ async function handleChatRequest(request, env) {
         }
 
         if (!backendResponse.ok) {
+            // 专门处理 429 Too Many Requests 错误
+            if (backendResponse.status === 429) {
+                console.error(`Rate limit exceeded for model ${model} (${apiConfig.provider}). Status: 429`);
+                const errorPayload = {
+                    error: `请求过于频繁 (速率限制)，请稍等片刻后再试。模型: ${model}`,
+                    statusCode: 429,
+                    provider: apiConfig.provider,
+                };
+                return new Response(JSON.stringify(errorPayload, null, 2), {
+                    status: 429,
+                    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+                });
+            }
+
             const rawBackendErrorText = await backendResponse.text(); // 获取原始错误文本
             console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Raw Response: ${rawBackendErrorText}`);
             return new Response(JSON.stringify({
