@@ -329,7 +329,7 @@ function buildApiConfig(model, messages, stream, env) {
         const mergedMessages = [];
         for (const msg of processed) {
             const lastMsg = mergedMessages.length > 0 ? mergedMessages[mergedMessages.length - 1] : null;
-            const currentRole = msg.role === 'user' ? 'user' : 'model';
+            const currentRole = msg.role === 'user' ? 'user' : 'model'; // 标准化当前角色
             const isTextMessage = !(msg.parts && msg.parts.some(p => p.inline_data));
 
             if (lastMsg && lastMsg.role === currentRole && isTextMessage) {
