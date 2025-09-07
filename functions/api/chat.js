@@ -312,47 +312,46 @@ function buildApiConfig(model, messages, stream, env) {
             throw new Error('Server configuration error: GEMINI_API_KEY is not set for Gemini model.');
         }
 
-        // --- Gemini 消息处理：合并连续的 user 消息 ---
+        // --- Gemini 消息处理：确保格式正确并合并连续的用户消息 ---
+        
+        // 1. 过滤掉无效消息
+        let processed = messages.filter(msg => (msg.content || msg.parts));
+
+        // 2. 确保第一条消息是 'user'
+        const firstUserIndex = processed.findIndex(msg => msg.role === 'user');
+        if (firstUserIndex > 0) {
+            // 如果第一条 user 消消息前有其他消息，全部丢弃
+            processed = processed.slice(firstUserIndex);
+        } else if (firstUserIndex === -1) {
+            // 如果完全没有 user 消息，则无法处理
+            throw new Error("Invalid chat history: No user messages found.");
+        }
+
+        // 3. 合并连续的纯文本 user 消息
         const mergedMessages = [];
-        let lastRole = null;
+        for (const msg of processed) {
+            const lastMsg = mergedMessages.length > 0 ? mergedMessages[mergedMessages.length - 1] : null;
+            const isTextMessage = !(msg.parts && msg.parts.some(p => p.inline_data));
 
-        messages.forEach(msg => {
-            const currentRole = msg.role === 'user' ? 'user' : 'model';
-            const content = msg.content || (msg.parts && msg.parts.find(p => p.text)?.text) || '';
-
-            if (currentRole === 'user' && lastRole === 'user' && mergedMessages.length > 0) {
-                // 合并内容到上一条 user 消消息
-                const lastMsg = mergedMessages[mergedMessages.length - 1];
-                const lastPart = lastMsg.parts[lastMsg.parts.length - 1];
-                if (lastPart && lastPart.text !== undefined) {
-                    lastPart.text += "\n" + content;
-                }
-                // 如果有图片，也需要处理，但当前逻辑主要是合并文本
+            if (lastMsg && lastMsg.role === 'user' && msg.role === 'user' && isTextMessage) {
+                // 合并内容
+                const contentToAppend = msg.content || (msg.parts && msg.parts[0]?.text) || '';
+                lastMsg.parts[0].text += "\n" + contentToAppend;
             } else {
-                // 添加新消息
-                mergedMessages.push({
-                    role: currentRole,
-                    parts: msg.parts ? msg.parts : [{ text: content }]
-                });
-                lastRole = currentRole;
+                // 直接添加，并确保格式正确
+                const role = msg.role === 'user' ? 'user' : 'model';
+                let parts = msg.parts;
+                if (!parts) {
+                    parts = [{ text: msg.content || '' }];
+                }
+                mergedMessages.push({ role, parts });
             }
-        });
-        // --- 消息合并结束 ---
+        }
 
-        const geminiMessages = mergedMessages.map(msg => {
-            // 如果消息已经有了 parts 字段 (例如，在多模态处理中创建的)，直接使用它
-            if (msg.parts) {
-                return {
-                    role: msg.role, // 使用合并后的角色
-                    parts: msg.parts
-                };
-            }
-            // 否则，根据 content 创建 parts (这部分作为后备)
-            return {
-                role: msg.role,
-                parts: [{ text: msg.content }]
-            };
-        });
+        // 4. 最终检查
+        if (mergedMessages.length === 0) {
+            throw new Error("Invalid chat history: Resulting messages are empty.");
+        }
 
         apiConfig = {
             provider: PROVIDERS.GEMINI,
@@ -360,7 +359,7 @@ function buildApiConfig(model, messages, stream, env) {
             apiKey: env.GEMINI_API_KEY,
             modelName: model,
             body: {
-                contents: geminiMessages,
+                contents: mergedMessages,
             }
         };
     } else if (model.startsWith('deepseek') || model.startsWith('gpt-') || model.startsWith('qwen') || model.startsWith('ollama-')) {
@@ -383,3 +382,5 @@ function buildApiConfig(model, messages, stream, env) {
     }
     return apiConfig;
 }
+        throw new Error(`Unsupported model: ${model}`);
+
