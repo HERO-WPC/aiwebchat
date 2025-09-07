@@ -180,96 +180,105 @@ async function handleChatRequest(request, env) {
             delete fetchOptions.headers['Authorization'];
         }
 
-        console.log('--- Debugging External API Request ---');
-        console.log('Final Endpoint:', finalEndpoint);
-        console.log('Request Body:', JSON.stringify(apiConfig.body, null, 2));
-        console.log('--------------------------------------');
+        const debugInfo = {
+            finalEndpoint: finalEndpoint,
+            requestBody: apiConfig.body,
+            provider: apiConfig.provider,
+            model: model
+        };
 
-        const backendResponse = await fetch(finalEndpoint, fetchOptions);
-
-        // --- 流式响应处理 ---
-        if (stream) {
-            let responseStream;
-            if (apiConfig.provider === PROVIDERS.GEMINI) {
-                responseStream = backendResponse.body.pipeThrough(transformGeminiStreamToSSE());
-            } else {
-                responseStream = backendResponse.body;
-            }
-            
-            return new Response(responseStream, {
-                status: backendResponse.status,
-                headers: {
-                    'Content-Type': 'text/event-stream',
-                    'Access-Control-Allow-Origin': '*',
-                }
-            });
-        }
-
-        // --- 非流式响应处理 ---
-        let data;
-        let contentTypeHeader = backendResponse.headers.get('Content-Type');
-
-        try {
-            data = await backendResponse.json();
-        } catch (jsonError) {
-            const rawErrorText = await backendResponse.text();
-            console.error(`Backend API returned non-JSON or malformed JSON for model ${model} (${apiConfig.provider}) (Status: ${backendResponse.status}, Content-Type: ${contentTypeHeader || 'None'}):`, rawErrorText);
-
-            return new Response(JSON.stringify({
-                error: `Backend API returned unexpected response format for model ${model}. Status: ${backendResponse.status}, Type: ${contentTypeHeader || 'Unknown'}. Details: ${rawErrorText.substring(0, 500)}`,
-                statusCode: backendResponse.status,
-                originalResponse: rawErrorText
-            }), {
-                status: backendResponse.status !== 200 ? backendResponse.status : 500,
-                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-
-        if (!backendResponse.ok) {
-            const rawBackendErrorText = await backendResponse.text(); // 获取原始错误文本
-            console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Raw Response: ${rawBackendErrorText}`);
-            return new Response(JSON.stringify({
-                error: `Backend API error for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}. Details: ${rawBackendErrorText.substring(0, 500)}`,
-                statusCode: backendResponse.status,
-                originalResponse: rawBackendErrorText // 包含原始错误响应
-            }), {
-                status: backendResponse.status,
-                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-
-         if (data.error) {
-            console.error(`Backend API reported error for model ${model} (${apiConfig.provider}):`, data.error);
-            return new Response(JSON.stringify({
-                error: `Backend API error for model ${model} (${apiConfig.provider}): ${data.error.message || JSON.stringify(data.error)}`,
-                statusCode: backendResponse.status,
-                originalResponse: data
-            }), {
-                status: backendResponse.status,
-                headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-            });
-        }
-
-        let replyContent;
-        if (apiConfig.provider === PROVIDERS.GEMINI) {
-            replyContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        } else {
-            replyContent = data.choices?.[0]?.message?.content;
-        }
-
-
-        if (replyContent === undefined) {
-             console.warn(`Unexpected backend response structure for model ${model} (${apiConfig.provider}):`, data);
-             return new Response(JSON.stringify({ error: `Unexpected response from ${apiConfig.provider} for model ${model}` }), {
-                 status: 500,
-                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-             });
-        }
-
-        return new Response(JSON.stringify({ reply: replyContent }), {
+        // --- 临时调试：直接返回调试信息 ---
+        return new Response(JSON.stringify({ debug: debugInfo }), {
             status: 200,
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
+        // --- 临时调试结束 ---
+
+        // const backendResponse = await fetch(finalEndpoint, fetchOptions);
+
+        // --- 流式响应处理 ---
+        // if (stream) {
+        //     let responseStream;
+        //     if (apiConfig.provider === PROVIDERS.GEMINI) {
+        //         responseStream = backendResponse.body.pipeThrough(transformGeminiStreamToSSE());
+        //     } else {
+        //         responseStream = backendResponse.body;
+        //     }
+            
+        //     return new Response(responseStream, {
+        //         status: backendResponse.status,
+        //         headers: {
+        //             'Content-Type': 'text/event-stream',
+        //             'Access-Control-Allow-Origin': '*',
+        //         }
+        //     });
+        // }
+
+        // --- 非流式响应处理 ---
+        // let data;
+        // let contentTypeHeader = backendResponse.headers.get('Content-Type');
+
+        // try {
+        //     data = await backendResponse.json();
+        // } catch (jsonError) {
+        //     const rawErrorText = await backendResponse.text();
+        //     console.error(`Backend API returned non-JSON or malformed JSON for model ${model} (${apiConfig.provider}) (Status: ${backendResponse.status}, Content-Type: ${contentTypeHeader || 'None'}):`, rawErrorText);
+
+        //     return new Response(JSON.stringify({
+        //         error: `Backend API returned unexpected response format for model ${model}. Status: ${backendResponse.status}, Type: ${contentTypeHeader || 'Unknown'}. Details: ${rawErrorText.substring(0, 500)}`,
+        //         statusCode: backendResponse.status,
+        //         originalResponse: rawErrorText
+        //     }), {
+        //         status: backendResponse.status !== 200 ? backendResponse.status : 500,
+        //         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        //     });
+        // }
+
+        // if (!backendResponse.ok) {
+        //     const rawBackendErrorText = await backendResponse.text(); // 获取原始错误文本
+        //     console.error(`Backend API returned error status for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}, Raw Response: ${rawBackendErrorText}`);
+        //     return new Response(JSON.stringify({
+        //         error: `Backend API error for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}. Details: ${rawBackendErrorText.substring(0, 500)}`,
+        //         statusCode: backendResponse.status,
+        //         originalResponse: rawBackendErrorText // 包含原始错误响应
+        //     }), {
+        //         status: backendResponse.status,
+        //         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        //     });
+        // }
+
+        //  if (data.error) {
+        //     console.error(`Backend API reported error for model ${model} (${apiConfig.provider}):`, data.error);
+        //     return new Response(JSON.stringify({
+        //         error: `Backend API error for model ${model} (${apiConfig.provider}): ${data.error.message || JSON.stringify(data.error)}`,
+        //         statusCode: backendResponse.status,
+        //         originalResponse: data
+        //     }), {
+        //         status: backendResponse.status,
+        //         headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        //     });
+        // }
+
+        // let replyContent;
+        // if (apiConfig.provider === PROVIDERS.GEMINI) {
+        //     replyContent = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        // } else {
+        //     replyContent = data.choices?.[0]?.message?.content;
+        // }
+
+
+        // if (replyContent === undefined) {
+        //      console.warn(`Unexpected backend response structure for model ${model} (${apiConfig.provider}):`, data);
+        //      return new Response(JSON.stringify({ error: `Unexpected response from ${apiConfig.provider} for model ${model}` }), {
+        //          status: 500,
+        //          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        //      });
+        // }
+
+        // return new Response(JSON.stringify({ reply: replyContent }), {
+        //     status: 200,
+        //     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        // });
 
     } catch (error) {
         console.error(`Worker internal error during backend fetch for model ${model}:`, error);
@@ -278,7 +287,6 @@ async function handleChatRequest(request, env) {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
     }
-}
 
 /**
  * 根据模型和消息构建 API 请求配置。
