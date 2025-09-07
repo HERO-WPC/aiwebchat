@@ -14,6 +14,9 @@ const imagePreviewContainer = document.getElementById('image-preview-container')
 // --- 应用状态管理 ---
 // 使用 let 定义变量，用于存储应用在运行过程中的状态。
 
+let conversationHistory = []; // 存储整个对话历史记录，用于发送给 API 以维持上下文
+let attachedImageBase64 = null; // 用于存储当前选中的、已编码为 Base64 的图片数据。发送后会清空。
+
 /**
  * 禁用聊天界面的输入控件（发送按钮、模型选择器、上传按钮）。
  * 防止用户在消息发送过程中进行重复操作。
