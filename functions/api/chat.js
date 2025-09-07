@@ -127,7 +127,7 @@ async function handleChatRequest(request, env) {
 
     // --- 多模态处理：如果请求中包含图片，则修改最后一条消息 ---
     const processedMessages = [...messages]; // 创建消息的副本，避免直接修改原始请求体
-    if (imageBase66 && processedMessages.length > 0) { // 这里修正了一个明显的错别字：imageBase66 应为 imageBase64
+    if (imageBase64 && processedMessages.length > 0) { // 这里修正了一个明显的错别字：imageBase66 应为 imageBase64
         const lastMessage = processedMessages[processedMessages.length - 1];
         if (lastMessage.role === 'user') {
             const match = imageBase64.match(/^data:(image\/.+);base64,(.+)$/);
@@ -182,7 +182,9 @@ async function handleChatRequest(request, env) {
             }
             urlParams.append('key', apiConfig.apiKey);
 
-            finalEndpoint = `${apiConfig.endpoint}?${urlParams.toString()}`;
+            // 统一构建 Gemini API 的操作路径
+            const operation = stream ? 'streamGenerateContent' : 'generateContent';
+            finalEndpoint = `${apiConfig.endpoint}:${operation}?${urlParams.toString()}`;
             delete fetchOptions.headers['Authorization'];
         }
 
@@ -348,7 +350,7 @@ function buildApiConfig(model, messages, stream, env) {
 
         apiConfig = {
             provider: PROVIDERS.GEMINI,
-            endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:${stream ? 'streamGenerateContent' : 'generateContent'}`,
+            endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}`,
             apiKey: env.GEMINI_API_KEY,
             modelName: model,
             body: {
