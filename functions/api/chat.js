@@ -312,43 +312,40 @@ function buildApiConfig(model, messages, stream, env) {
             throw new Error('Server configuration error: GEMINI_API_KEY is not set for Gemini model.');
         }
 
-        // --- Gemini 消息处理：确保格式正确并合并连续的用户消息 ---
+        // --- Gemini 消息处理：确保角色交替并合并连续消息 ---
         
-        // 1. 过滤掉无效消息
-        let processed = messages.filter(msg => (msg.content || msg.parts));
+        // 1. 过滤掉无效或空内容的消息
+        let processed = messages.filter(msg => (msg.content || (msg.parts && msg.parts.some(p => p.text || p.inline_data))));
 
         // 2. 确保第一条消息是 'user'
         const firstUserIndex = processed.findIndex(msg => msg.role === 'user');
         if (firstUserIndex > 0) {
-            // 如果第一条 user 消消息前有其他消息，全部丢弃
             processed = processed.slice(firstUserIndex);
         } else if (firstUserIndex === -1) {
-            // 如果完全没有 user 消息，则无法处理
             throw new Error("Invalid chat history: No user messages found.");
         }
 
-        // 3. 合并连续的纯文本 user 消息
+        // 3. 合并连续的同角色消息，确保角色交替
         const mergedMessages = [];
         for (const msg of processed) {
             const lastMsg = mergedMessages.length > 0 ? mergedMessages[mergedMessages.length - 1] : null;
+            const currentRole = msg.role === 'user' ? 'user' : 'model';
             const isTextMessage = !(msg.parts && msg.parts.some(p => p.inline_data));
 
-            if (lastMsg && lastMsg.role === 'user' && msg.role === 'user' && isTextMessage) {
-                // 合并内容
+            if (lastMsg && lastMsg.role === currentRole && isTextMessage) {
+                // 合并纯文本内容
                 const contentToAppend = msg.content || (msg.parts && msg.parts[0]?.text) || '';
                 lastMsg.parts[0].text += "\n" + contentToAppend;
             } else {
                 // 直接添加，并确保格式正确
-                const role = msg.role === 'user' ? 'user' : 'model';
                 let parts = msg.parts;
                 if (!parts) {
                     parts = [{ text: msg.content || '' }];
                 }
-                mergedMessages.push({ role, parts });
+                mergedMessages.push({ role: currentRole, parts });
             }
         }
 
-        // 4. 最终检查
         if (mergedMessages.length === 0) {
             throw new Error("Invalid chat history: Resulting messages are empty.");
         }
@@ -366,6 +363,20 @@ function buildApiConfig(model, messages, stream, env) {
         if (!env.OLLAMA_API_BASE_URL) {
             throw new Error('Server configuration error: OLLAMA_API_BASE_URL is not set for Ollama-compatible models.');
         }
+        
+        // --- Ollama/OpenAI 消息处理：统一消息格式 ---
+        const ollamaMessages = messages.map(msg => {
+            // 如果 content 已经是数组 (多模态)，直接返回
+            if (Array.isArray(msg.content)) {
+                return msg;
+            }
+            // 如果是纯文本，也包装成数组，以保持格式统一
+            return {
+                ...msg,
+                content: [{ type: 'text', text: msg.content || '' }]
+            };
+        });
+
         apiConfig = {
             provider: PROVIDERS.OLLAMA,
             endpoint: `${env.OLLAMA_API_BASE_URL}/v1/chat/completions`,
@@ -373,7 +384,7 @@ function buildApiConfig(model, messages, stream, env) {
             modelName: model.startsWith('ollama-') ? model.substring('ollama-'.length) : model,
             body: {
                 model: model.startsWith('ollama-') ? model.substring('ollama-'.length) : model,
-                messages: messages,
+                messages: ollamaMessages,
                 stream: stream !== undefined ? stream : true,
             }
         };
@@ -382,5 +393,6 @@ function buildApiConfig(model, messages, stream, env) {
     }
     return apiConfig;
 }
-        throw new Error(`Unsupported model: ${model}`);
+
+
 
