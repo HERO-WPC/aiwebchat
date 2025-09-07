@@ -4,9 +4,8 @@
   "private": true,
   "description": "AI Web Chat application deployed on Cloudflare Pages.",
   "type": "module",
-  "main": "functions/api/chat.js",
   "scripts": {
-    "build": "wrangler pages functions build functions"
+    "build": ""
   },
   "keywords": [],
   "author": "",
