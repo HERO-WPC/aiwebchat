@@ -14,14 +14,16 @@ export default {
     async fetch(request, env, ctx) { // 添加 ctx 参数，这是 Pages Functions 的标准签名
         try {
             const url = new URL(request.url);
-            console.log('Worker received request - Method:', request.method, 'Pathname:', url.pathname); // 新增调试日志
+            const pathname = url.pathname.endsWith('/') ? url.pathname.slice(0, -1) : url.pathname; // 移除尾部斜杠
+            console.log('Worker received request - Method:', request.method, 'Pathname:', pathname); // 新增调试日志
 
             // 仅处理 POST 请求到 /api/chat 路径
-            if (request.method === 'POST' && url.pathname === '/api/chat') {
+            if (request.method === 'POST' && pathname === '/api/chat') {
                 return handleChatRequest(request, env);
             }
 
-            // 针对其他路径或方法，返回一个默认的响应
+            // 如果不匹配，记录并返回 404
+            console.warn(`Request did not match: Method ${request.method} (expected POST), Pathname ${pathname} (expected /api/chat)`);
             return new Response('Not Found or Method Not Allowed', { status: 404 });
         } catch (error) {
             console.error('Global fetch error:', error);
