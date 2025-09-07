@@ -287,6 +287,7 @@ async function handleChatRequest(request, env) {
             headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
     }
+}
 
 /**
  * 根据模型和消息构建 API 请求配置。
