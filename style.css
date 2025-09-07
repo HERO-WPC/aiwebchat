@@ -7,7 +7,351 @@
  */
 body {
     /* 设置背景图片 */
+    /* --- CSS 变量定义 --- */
+:root {
+    /* 主题色 */
+    --primary-color: #766aee;
+    --primary-color-dark: #6659d6;
+    --primary-color-focus-glow: rgba(118, 106, 238, 0.3);
+
+    /* 字体与文本颜色 */
+    --font-family: 'Noto Sans SC', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --text-color-light: #e0e0e0;
+    --text-color-dark: #b0b0b0;
+    --text-color-white: #ffffff;
+    --text-color-placeholder: #a0a0a0;
+
+    /* 背景色 */
+    --bg-glass: rgba(20, 20, 25, 0.5);
+    --bg-header-footer: rgba(0, 0, 0, 0.25);
+    --bg-input: rgba(0, 0, 0, 0.3);
+    --bg-assistant-message: rgba(44, 48, 53, 0.8);
+    --bg-user-message-gradient: linear-gradient(135deg, rgba(118, 106, 238, 0.7), rgba(102, 78, 240, 0.8));
+    --bg-select-option: #2a2a30;
+    --bg-error: rgba(255, 82, 82, 0.7); /* 新增：错误背景色 */
+
+    /* 边框与阴影 */
+    --border-color: rgba(255, 255, 255, 0.125);
+    --border-color-input: rgba(255, 255, 255, 0.2);
+    --shadow-main: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
+    /* 圆角 */
+    --border-radius-main: 20px;
+    --border-radius-message: 18px;
+    --border-radius-input: 24px;
+    --border-radius-small: 8px;
+}
+
+
+/* --- 基础与背景设置 --- */
+body {
     background-image: url('https://images.unsplash.com/photo-1753109910060-ba1fa8fbd094?q=80&w=1470&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    font-family: var(--font-family);
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align: center;
+    height: 100vh;
+}
+
+/* --- 聊天主容器 --- */
+.chat-container {
+    width: 100%;
+    max-width: 800px;
+    height: 95vh;
+    max-height: 900px;
+    
+    background-color: var(--bg-glass);
+    backdrop-filter: blur(10px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-main);
+    box-shadow: var(--shadow-main);
+    
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: var(--text-color-light);
+    transition: all 0.3s ease;
+}
+
+/* --- 聊天头部区域 --- */
+.chat-header {
+    padding: 18px 24px;
+    background-color: var(--bg-header-footer);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.chat-header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+    color: var(--text-color-white);
+    text-shadow: 0 0 5px rgba(255,255,255,0.3);
+}
+
+.model-selector label {
+    font-size: 14px;
+    color: var(--text-color-dark);
+}
+
+.model-selector select {
+    padding: 6px 10px;
+    border-radius: var(--border-radius-small);
+    border: 1px solid var(--border-color-input);
+    background-color: var(--bg-input);
+    color: var(--text-color-white);
+    font-size: 14px;
+    cursor: pointer;
+}
+.model-selector select option {
+    background: var(--bg-select-option);
+}
+.model-selector select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color-focus-glow);
+}
+
+/* --- 聊天消息显示窗口 --- */
+.chat-window {
+    flex-grow: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.chat-window::-webkit-scrollbar {
+    width: 6px;
+}
+.chat-window::-webkit-scrollbar-thumb {
+    background-color: var(--border-color-input);
+    border-radius: 3px;
+}
+
+/* --- 聊天消息本身 --- */
+.message {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    max-width: 85%;
+    line-height: 1.6;
+    animation: message-fade-in 0.4s ease-out;
+}
+
+@keyframes message-fade-in {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.message-content {
+    padding: 12px 16px;
+    border-radius: var(--border-radius-message);
+    font-size: 15px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    min-height: 1.6em; /* 确保空消息也有高度 */
+}
+
+.message-content img {
+    max-width: 100%;
+    border-radius: 10px;
+    margin-top: 8px;
+    display: block;
+}
+
+/* 用户发送的消息 */
+.message.user {
+    align-self: flex-end;
+}
+
+.message.user .message-content {
+    background: var(--bg-user-message-gradient);
+    color: var(--text-color-white);
+    border-bottom-right-radius: 4px;
+}
+
+/* AI 助手的回复 */
+.message.assistant .message-content {
+    background-color: var(--bg-assistant-message);
+    color: var(--text-color-light);
+    border-bottom-left-radius: 4px;
+}
+
+/* 新增：等待流式响应时的加载动画 */
+.message.assistant.loading .message-content {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { background-color: var(--bg-assistant-message); }
+    50% { background-color: rgba(60, 65, 72, 0.8); }
+    100% { background-color: var(--bg-assistant-message); }
+}
+
+/* 新增：错误消息的样式 */
+.message.assistant.error .message-content {
+    background-color: var(--bg-error);
+    color: var(--text-color-white);
+    animation: none; /* 取消加载动画 */
+}
+
+
+/* --- 底部聊天输入区域 --- */
+.chat-input-area {
+    padding: 16px 24px;
+    border-top: 1px solid var(--border-color);
+    background-color: var(--bg-header-footer);
+    flex-shrink: 0;
+}
+
+.chat-form {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.chat-form input {
+    flex-grow: 1;
+    padding: 12px 16px;
+    border: 1px solid var(--border-color-input);
+    background-color: var(--bg-input);
+    border-radius: var(--border-radius-input);
+    font-size: 15px;
+    color: var(--text-color-white);
+}
+.chat-form input::placeholder {
+    color: var(--text-color-placeholder);
+}
+.chat-form input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px var(--primary-color-focus-glow);
+}
+
+/* 上传和发送按钮的通用样式 */
+.chat-form button {
+    padding: 12px;
+    width: 48px;
+    height: 48px;
+    border: none;
+    border-radius: 50%;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+/* 图片上传按钮的特定样式 */
+.chat-form button.upload-button {
+    background-color: transparent;
+    color: var(--text-color-dark);
+    border: 1px solid var(--border-color-input);
+}
+.chat-form button.upload-button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    color: var(--text-color-white);
+}
+
+/* 发送按钮的特定样式 */
+.chat-form button[type="submit"] {
+    background-color: var(--primary-color);
+    color: var(--text-color-white);
+}
+.chat-form button[type="submit"]:hover {
+    background-color: var(--primary-color-dark);
+}
+.chat-form button[type="submit"]:disabled {
+    background-color: #555;
+    cursor: not-allowed;
+}
+
+/* --- 图片预览区域 --- */
+.image-preview-container {
+    padding: 0 24px 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.image-preview-item {
+    position: relative;
+}
+.image-preview-item img {
+    width: 60px;
+    height: 60px;
+    border-radius: var(--border-radius-small);
+    object-fit: cover;
+}
+.remove-image-btn {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    width: 20px;
+    height: 20px;
+    background-color: rgba(0,0,0,0.7);
+    color: var(--text-color-white);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+/* --- 响应式设计：针对手机端的优化 --- */
+@media (max-width: 768px) {
+    body {
+        align-items: flex-start;
+        justify-content: flex-start;
+    }
+
+    .chat-container {
+        width: 100%;
+        height: 100vh;
+        max-height: 100vh;
+        border-radius: 0;
+        box-shadow: none;
+        border: none;
+    }
+
+    .chat-header { padding: 12px 16px; }
+    .chat-header h1 { font-size: 18px; }
+    .chat-window { padding: 16px; }
+    .message-content { font-size: 14px; }
+    .chat-input-area { padding: 8px 12px; }
+    .chat-form { gap: 8px; }
+    .chat-form input { padding: 10px 14px; }
+    .chat-form button {
+        width: 44px;
+        height: 44px;
+        font-size: 16px;
+    }
+    .image-preview-container { padding: 0 12px 8px; }
+}
+
+/* --- 针对非常窄的屏幕（如旧款手机）的微调 --- */
+@media (max-width: 360px) {
+    .chat-header h1 {
+        display: none;
+    }
+    .chat-header {
+        justify-content: center;
+    }
+}
+
     /* 让背景图完全覆盖整个页面，可能会裁剪图片 */
     background-size: cover;
     /* 图片居中显示 */
@@ -39,9 +383,9 @@ body {
     /* 1. 半透明背景色：这是底层颜色，决定了“玻璃”的颜色和不透明度 */
     background-color: rgba(20, 20, 25, 0.5); 
     /* 2. 背景模糊滤镜：这是实现“磨砂”效果的关键，它会模糊容器背后的所有内容 */
-    backdrop-filter: blur(0px) saturate(150%);
+    backdrop-filter: blur(10px) saturate(150%);
     /* 3. 兼容性前缀：确保在 Safari 等基于 Webkit 的浏览器中也能生效 */
-    -webkit-backdrop-filter: blur(0px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
     
     /* 添加一个非常细微的亮色边框，模拟玻璃的边缘反光 */
     border: 1px solid rgba(255, 255, 255, 0.125);

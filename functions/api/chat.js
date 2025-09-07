@@ -24,6 +24,59 @@ export default {
     }
 };
 
+
+// =========================================================================
+// Gemini 流式响应转换器
+// 将 Gemini 的流式 JSON 转换为 OpenAI 兼容的 SSE 格式
+// =========================================================================
+function transformGeminiStreamToSSE() {
+    let buffer = '';
+    const decoder = new TextDecoder();
+
+    return new TransformStream({
+        transform(chunk, controller) {
+            buffer += decoder.decode(chunk, { stream: true });
+
+            // Gemini 的流通常以 "data: " 开头，并且每个 JSON 对象后有两个换行符
+            // 我们需要处理可能不完整的 JSON 数据块
+            const lines = buffer.split('\n\n');
+            
+            // 保留最后一个可能不完整的块在缓冲区中
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const rawJson = line.substring(6);
+                        const geminiChunk = JSON.parse(rawJson);
+                        const textContent = geminiChunk.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+                        if (textContent) {
+                            // 构建 OpenAI 兼容的 SSE 负载
+                            const ssePayload = {
+                                choices: [{
+                                    delta: { content: textContent },
+                                    index: 0,
+                                    finish_reason: null
+                                }]
+                            };
+                            // 将 SSE 格式的字符串推送到流中
+                            controller.enqueue(`data: ${JSON.stringify(ssePayload)}\n\n`);
+                        }
+                    } catch (e) {
+                        console.error('Error parsing Gemini stream chunk:', e, 'Chunk:', line);
+                    }
+                }
+            }
+        },
+        flush(controller) {
+            // 流结束时，发送一个 [DONE] 消息，以符合 OpenAI SSE 规范
+            controller.enqueue('data: [DONE]\n\n');
+        }
+    });
+}
+
+
 // =========================================================================
 // 聊天请求处理函数
 // 这是核心逻辑，根据模型选择不同的后端 API
@@ -48,7 +101,7 @@ async function handleChatRequest(request, env) {
         });
     }
 
-    const { model, messages, stream } = requestBody; // 提取请求中的关键信息
+    const { model, messages, stream, image: imageBase64 } = requestBody; // 提取请求中的关键信息
 
     if (!model) {
         return new Response(JSON.stringify({ error: 'Missing "model" in request body' }), {
@@ -63,29 +116,72 @@ async function handleChatRequest(request, env) {
         });
     }
 
+    // --- 多模态处理：如果请求中包含图片，则修改最后一条消息 ---
+    if (imageBase64 && messages.length > 0) {
+        const lastMessage = messages[messages.length - 1];
+        if (lastMessage.role === 'user') {
+            // 提取 MIME 类型和纯 Base64 数据
+            const match = imageBase64.match(/^data:(image\/.+);base64,(.+)$/);
+            if (match) {
+                const mimeType = match[1];
+                const pureBase64 = match[2];
+
+                // 根据模型类型调整消息结构
+                if (model.startsWith('gemini')) {
+                    // Gemini 的格式
+                    lastMessage.parts = [
+                        { text: lastMessage.content },
+                        { inline_data: { mime_type: mimeType, data: pureBase64 } }
+                    ];
+                    // Gemini API 要求 content 是一个字符串，即使在多模态请求中也是如此。
+                    // 这里的 `parts` 字段是放在 `contents` 数组的元素中的。
+                    // 我们需要确保原始的 `content` 字段被移除或忽略。
+                    // 下面的 Gemini 请求构建逻辑会正确处理 `parts`。
+                } else {
+                    // Ollama / OpenAI 兼容的格式
+                    lastMessage.content = [
+                        { type: 'text', text: lastMessage.content },
+                        { type: 'image_url', image_url: { url: imageBase64 } }
+                    ];
+                }
+            }
+        }
+    }
+
+
     let apiConfig = {}; // 存储 API 请求所需的配置
 
     // --- 根据模型名称路由到不同的后端 ---
     // 1. **Gemini 模型**
     if (model.startsWith('gemini')) {
+        // 转换消息格式以适应 Gemini API
+        const geminiMessages = messages.map(msg => {
+            // 如果消息已经有了 `parts` 字段（由上面的图像逻辑添加），则直接使用
+            if (msg.parts) {
+                return {
+                    role: msg.role === 'user' ? 'user' : 'model',
+                    parts: msg.parts
+                };
+            }
+            // 否则，创建标准的文本 `parts`
+            return {
+                role: msg.role === 'user' ? 'user' : 'model',
+                parts: [{ text: msg.content }]
+            };
+        });
+
         apiConfig = {
             provider: PROVIDERS.GEMINI,
             endpoint: `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
-            apiKey: env.GEMINI_API_KEY, // 使用 Gemini 自己的 API Key
+            apiKey: env.GEMINI_API_KEY,
             modelName: model,
-            // 构建请求体 (Gemini API 格式)
             body: {
-                contents: messages.map(msg => ({
-                    role: msg.role === 'user' ? 'user' : 'model', // Gemini API 的角色约定 [1]
-                    parts: [{ text: msg.content }]
-                })),
-                // generationConfig: { /* ... */ },
-                // safetySettings: [ /* ... */ ],
+                contents: geminiMessages,
             }
         };
-        // Gemini 也支持流式传输，需要修改端点 [1]
         if (stream) {
-            apiConfig.endpoint = apiConfig.endpoint.replace(':generateContent', ':streamGenerateContent'); // 使用流式端点 [1]
+            // Gemini 流式 API 的 URL 有所不同
+            apiConfig.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
         }
     }
     // 2. **DeepSeek, ChatGPT, 千问 (Qwen) 以及其他 Ollama 模型**
@@ -100,21 +196,8 @@ async function handleChatRequest(request, env) {
                 model: model.startsWith('ollama-') ? model.substring('ollama-'.length) : model,
                 messages: messages,
                 stream: stream !== undefined ? stream : true, // 默认开启流式传输
-                // Ollama 还有一些特有的 options 可以添加，如果需要 [4]
             }
         };
-        // ⚠️ 如果你需要 Ollama 支持多模态（例如 DeepSeek-VL 或 LLaVA），
-        // 并且前端可以发送图片数据，你需要在这里添加图像处理逻辑。
-        // 例如：
-        /*
-        const lastMessage = messages[messages.length - 1];
-        if (lastMessage && lastMessage.role === 'user' && requestBody.image) {
-            lastMessage.content = [
-                { type: 'text', text: lastMessage.content },
-                { type: 'image_url', image_url: { url: requestBody.image } }
-            ];
-        }
-        */
     }
     else {
         // 如果没有匹配的模型，返回错误
@@ -139,7 +222,7 @@ async function handleChatRequest(request, env) {
         // 特殊处理 Gemini API 的 headers，因为其 API Key 是作为 URL 参数传递的
         let finalEndpoint = apiConfig.endpoint;
         if (apiConfig.provider === PROVIDERS.GEMINI) {
-            finalEndpoint = `${apiConfig.endpoint}?key=${apiConfig.apiKey}`;
+            finalEndpoint = `${apiConfig.endpoint}&key=${apiConfig.apiKey}`;
             delete fetchOptions.headers['Authorization']; // 从 headers 中移除 Authorization
         }
 
@@ -147,11 +230,20 @@ async function handleChatRequest(request, env) {
 
         // --- 流式响应处理 ---
         if (stream) {
-            // 如果是流式响应，直接将后端响应的 ReadableStream 返回给客户端
-            return new Response(backendResponse.body, {
+            let responseStream;
+            // 如果是 Gemini，我们需要转换其流格式
+            if (apiConfig.provider === PROVIDERS.GEMINI) {
+                responseStream = backendResponse.body.pipeThrough(transformGeminiStreamToSSE());
+            } else {
+                // Ollama/OpenAI 的流已经是正确的 SSE 格式，直接使用
+                responseStream = backendResponse.body;
+            }
+            
+            // 将最终（可能已转换的）流返回给客户端
+            return new Response(responseStream, {
                 status: backendResponse.status,
                 headers: {
-                    'Content-Type': backendResponse.headers.get('Content-Type') || 'text/event-stream',
+                    'Content-Type': 'text/event-stream', // 强制设置为 SSE 类型
                     'Access-Control-Allow-Origin': '*', // 允许跨域访问
                 }
             });

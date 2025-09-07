@@ -25,6 +25,7 @@ let attachedImageBase64 = null; // 用于存储当前选中的、已编码为 Ba
  * @param {string} sender - 消息的发送者，'user' 或 'assistant'。这个参数决定了消息气泡的样式和位置。
  * @param {string} [text] - (可选) 消息的文本内容。
  * @param {string|null} [imageBase64] - (可选) 要在消息中显示的图片的 Base64 数据 URL。
+ * @returns {HTMLElement} 返回创建的消息内容元素，用于后续可能的更新（例如流式输出）
  */
 function addMessage(sender, text, imageBase64 = null) {
     // 1. 创建消息的最外层容器 <div>
@@ -56,29 +57,11 @@ function addMessage(sender, text, imageBase64 = null) {
     
     // 6. 自动滚动到聊天窗口的底部，确保最新的消息总是可见的
     chatWindow.scrollTop = chatWindow.scrollHeight;
-    return messageElement;
+    
+    // 7. 返回内容容器的引用，以便流式更新
+    return contentElement;
 }
 
-/**
- * 在聊天窗口中显示一个“正在输入”的加载动画。
- * 这能给用户一个即时的反馈，让他们知道应用正在处理他们的请求。
- */
-function showTypingIndicator() {
-    const indicatorElement = document.createElement('div');
-    indicatorElement.classList.add('message', 'assistant', 'loading'); // 使用和助手消息类似的样式
-    indicatorElement.innerHTML = `
-        <div class="message-content">
-            <div class="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-    `;
-    chatWindow.appendChild(indicatorElement);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-    return indicatorElement; // 返回这个元素的引用，方便之后移除它
-}
 
 /**
  * 清除图片预览区域的内容，并重置相关的状态变量。
@@ -170,15 +153,13 @@ chatForm.addEventListener('submit', async (e) => {
 
     const selectedModel = modelSelect.value; // 获取当前选择的模型
 
-    // 1. 乐观更新 UI：立即在界面上显示用户的消息，让用户感觉应用响应迅速。
+    // 1. 乐观更新 UI：立即在界面上显示用户的消息。
     addMessage('user', userMessage, attachedImageBase64);
     
     // 2. 更新对话历史：将用户的文本消息添加到历史记录中。
-    // 图片数据会作为单独的字段在请求体中发送，而不是直接混入历史记录。
     conversationHistory.push({ role: 'user', content: userMessage });
 
     // 3. 准备发送 API 请求
-    const typingIndicator = showTypingIndicator(); // 显示加载动画
     const currentImageBase64 = attachedImageBase64; // 临时保存当前要发送的图片数据
 
     // 4. 清理和禁用输入：在请求发送期间，清空输入框和预览，并禁用所有输入控件，防止用户重复发送。
@@ -188,47 +169,97 @@ chatForm.addEventListener('submit', async (e) => {
     modelSelect.disabled = true;
     uploadButton.disabled = true;
 
-    // 5. 使用 try...catch...finally 结构来健壮地处理异步 API 请求
+    // 5. 创建一个空的 AI 消息气泡，用于接收流式响应
+    const assistantMessageElement = addMessage('assistant', '');
+    assistantMessageElement.parentElement.classList.add('loading'); // 添加加载样式
+    let fullAssistantMessage = ''; // 用于累积完整的 AI 回复
+
+    // 6. 使用 try...catch...finally 结构来健壮地处理异步 API 请求
     try {
-        // 发送网络请求到我们的后端 API 代理 (Cloudflare Function)
+        // 发送网络请求到我们的后端 API 代理
         const response = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            // 构建发送到后端的 JSON 数据体
             body: JSON.stringify({
                 model: selectedModel,
                 messages: conversationHistory,
-                image: currentImageBase64, // 将捕获的图片数据包含在请求中
+                stream: true, // *** 启用流式传输 ***
+                image: currentImageBase64,
             }),
         });
 
-        // 如果服务器响应的 HTTP 状态码不是 2xx (不成功)
+        // 如果响应不成功 (例如 4xx, 5xx 错误)
         if (!response.ok) {
-            const errorData = await response.json(); // 尝试解析错误信息
-            throw new Error(errorData.error || 'API 请求失败'); // 抛出一个错误，会被下面的 catch 捕获
+            // 尝试从响应体中解析详细的 JSON 错误信息
+            const errorData = await response.json().catch(() => {
+                // 如果响应体不是有效的 JSON，则创建一个包含状态文本的错误对象
+                return { error: `服务器错误，状态码: ${response.status} ${response.statusText}` };
+            });
+            // 抛出错误，由下方的 catch 块处理
+            throw new Error(errorData.error || '发生未知错误');
         }
 
-        const data = await response.json(); // 解析成功的 JSON 响应
-        const assistantMessage = data.reply; // 提取 AI 的回复文本
+        // --- 处理流式响应 ---
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let isFirstChunk = true;
 
-        // 6. 更新状态和 UI：将 AI 的回复也添加到对话历史中
-        conversationHistory.push({ role: 'assistant', content: assistantMessage });
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break; // 读取完成
+            }
+
+            if (isFirstChunk) {
+                assistantMessageElement.parentElement.classList.remove('loading'); // 移除加载样式
+                isFirstChunk = false;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || ''; // 保留不完整的行在缓冲区
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    const dataStr = line.substring(6);
+                    if (dataStr === '[DONE]') {
+                        break;
+                    }
+                    try {
+                        const data = JSON.parse(dataStr);
+                        const delta = data.choices?.[0]?.delta?.content || '';
+                        if (delta) {
+                            fullAssistantMessage += delta;
+                            // 直接更新消息内容元素的文本
+                            assistantMessageElement.textContent = fullAssistantMessage;
+                            chatWindow.scrollTop = chatWindow.scrollHeight; // 实时滚动
+                        }
+                    } catch (e) {
+                        console.error('解析 SSE 数据块失败:', e, '数据块:', dataStr);
+                    }
+                }
+            }
+        }
         
-        // 7. 显示 AI 的回复
-        chatWindow.removeChild(typingIndicator); // 先移除加载动画
-        addMessage('assistant', assistantMessage); // 再显示 AI 的消息
+        // 流结束后，将完整的消息存入历史记录
+        if (fullAssistantMessage) {
+            conversationHistory.push({ role: 'assistant', content: fullAssistantMessage });
+        }
 
     } catch (error) {
-        // 如果在 try 块中发生任何错误（网络问题、API 失败等），代码会跳转到这里
-        console.error('错误:', error); // 在浏览器控制台打印详细错误，方便调试
-        chatWindow.removeChild(typingIndicator); // 同样要移除加载动画
-        addMessage('assistant', `抱歉，出错了: ${error.message}`); // 在界面上向用户显示一个友好的错误提示
+        // 捕获所有在 try 块中发生的错误 (网络错误, HTTP 错误等)
+        console.error('请求出错:', error);
+        assistantMessageElement.parentElement.classList.remove('loading');
+        assistantMessageElement.parentElement.classList.add('error'); // 添加错误样式
+        assistantMessageElement.textContent = `抱歉，出错了: ${error.message}`;
+
     } finally {
         // 无论请求成功还是失败，finally 块中的代码都一定会执行
-        // 8. 恢复界面：重新启用输入控件，让用户可以开始下一次对话
+        // 7. 恢复界面：重新启用输入控件
         sendButton.disabled = false;
         modelSelect.disabled = false;
         uploadButton.disabled = false;
-        messageInput.focus(); // 将光标自动聚焦到输入框，方便用户继续输入
+        messageInput.focus();
     }
 });

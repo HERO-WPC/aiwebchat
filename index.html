@@ -37,10 +37,10 @@
             <div class="model-selector">
                 <label for="model-select">选择模型:</label>
                 <select id="model-select">
-                    <option value="gemini">Gemini Vision</option>
-                    <option value="chatgpt">ChatGPT-4o</option>
-                    <option value="deepseek">DeepSeek-VL</option>
-                    <option value="qwen">通义千问-VL</option>
+                    <option value="gemini-pro-vision">Gemini Vision</option>
+                    <option value="gpt-4o">ChatGPT-4o</option>
+                    <option value="deepseek-vl">DeepSeek-VL</option>
+                    <option value="qwen-vl">通义千问-VL</option>
                 </select>
             </div>
         </header>
@@ -91,9 +91,9 @@
     
     <!-- 
       在 body 结束前引入我们的 JavaScript 文件。
-      这是一种最佳实践，可以确保在脚本执行时，页面上所有的 DOM 元素都已经被浏览器加载和解析完毕，
-      从而避免脚本找不到元素而出错。
+      添加 defer 属性可以告诉浏览器立即开始下载脚本，但延迟到 HTML 文档解析完毕后再执行。
+      这可以防止脚本下载阻塞页面的渲染，是现代 Web 开发的最佳实践。
     -->
-    <script src="script.js"></script>
+    <script src="script.js" defer></script>
 </body>
 </html>
