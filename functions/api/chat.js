@@ -220,7 +220,7 @@ async function handleChatRequest(request, env) {
                 error: `Backend API returned unexpected response format for model ${model}. Status: ${backendResponse.status}, Type: ${contentTypeHeader || 'Unknown'}. Details: ${rawErrorText.substring(0, 500)}`,
                 statusCode: backendResponse.status,
                 originalResponse: rawErrorText
-            }), {
+            }, null, 2), {
                 status: backendResponse.status !== 200 ? backendResponse.status : 500,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
@@ -233,7 +233,7 @@ async function handleChatRequest(request, env) {
                 error: `Backend API error for model ${model} (${apiConfig.provider}): Status ${backendResponse.status}. Details: ${rawBackendErrorText.substring(0, 500)}`,
                 statusCode: backendResponse.status,
                 originalResponse: rawBackendErrorText // 包含原始错误响应
-            }), {
+            }, null, 2), {
                 status: backendResponse.status,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
@@ -245,7 +245,7 @@ async function handleChatRequest(request, env) {
                 error: `Backend API error for model ${model} (${apiConfig.provider}): ${data.error.message || JSON.stringify(data.error)}`,
                 statusCode: backendResponse.status,
                 originalResponse: data
-            }), {
+            }, null, 2), {
                 status: backendResponse.status,
                 headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
             });
@@ -297,15 +297,45 @@ function buildApiConfig(model, messages, stream, env) {
         if (!env.GEMINI_API_KEY) {
             throw new Error('Server configuration error: GEMINI_API_KEY is not set for Gemini model.');
         }
-        const geminiMessages = messages.map(msg => {
+
+        // --- Gemini 消息处理：合并连续的 user 消息 ---
+        const mergedMessages = [];
+        let lastRole = null;
+
+        messages.forEach(msg => {
+            const currentRole = msg.role === 'user' ? 'user' : 'model';
+            const content = msg.content || (msg.parts && msg.parts.find(p => p.text)?.text) || '';
+
+            if (currentRole === 'user' && lastRole === 'user' && mergedMessages.length > 0) {
+                // 合并内容到上一条 user 消消息
+                const lastMsg = mergedMessages[mergedMessages.length - 1];
+                const lastPart = lastMsg.parts[lastMsg.parts.length - 1];
+                if (lastPart && lastPart.text !== undefined) {
+                    lastPart.text += "\n" + content;
+                }
+                // 如果有图片，也需要处理，但当前逻辑主要是合并文本
+            } else {
+                // 添加新消息
+                mergedMessages.push({
+                    role: currentRole,
+                    parts: msg.parts ? msg.parts : [{ text: content }]
+                });
+                lastRole = currentRole;
+            }
+        });
+        // --- 消息合并结束 ---
+
+        const geminiMessages = mergedMessages.map(msg => {
+            // 如果消息已经有了 parts 字段 (例如，在多模态处理中创建的)，直接使用它
             if (msg.parts) {
                 return {
-                    role: msg.role === 'user' ? 'user' : 'model',
+                    role: msg.role, // 使用合并后的角色
                     parts: msg.parts
                 };
             }
+            // 否则，根据 content 创建 parts (这部分作为后备)
             return {
-                role: msg.role === 'user' ? 'user' : 'model',
+                role: msg.role,
                 parts: [{ text: msg.content }]
             };
         });
@@ -319,10 +349,6 @@ function buildApiConfig(model, messages, stream, env) {
                 contents: geminiMessages,
             }
         };
-        // 移除此处的 endpoint 修改逻辑，统一在 handleChatRequest 中处理
-        // if (stream) {
-        //     apiConfig.endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`;
-        // }
     } else if (model.startsWith('deepseek') || model.startsWith('gpt-') || model.startsWith('qwen') || model.startsWith('ollama-')) {
         if (!env.OLLAMA_API_BASE_URL) {
             throw new Error('Server configuration error: OLLAMA_API_BASE_URL is not set for Ollama-compatible models.');
